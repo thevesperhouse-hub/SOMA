@@ -1,0 +1,45 @@
+# Python
+engine/.venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Node / front
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Tauri / Rust
+src-tauri/target/
+src-tauri/gen/
+
+# Training outputs & caches (never commit these)
+engine/output/
+output/
+docker_out/
+**/.soma_cache/
+build.log
+push.log
+incontainer.log
+
+# Model weights & datasets (huge / private — keep out of the repo)
+*.safetensors
+*.ckpt
+*.pt
+*.bin
+lora01/
+data/
+models/
+cache/
+.cache/
+
+# HF / misc caches
+.cache/huggingface/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/

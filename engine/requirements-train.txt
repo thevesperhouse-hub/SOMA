@@ -1,0 +1,21 @@
+# Vrai entraînement (par-dessus la base). torch/torchvision installés séparément
+# par bootstrap.py via l'index cu128 (Blackwell). Versions à jour (juin 2026).
+diffusers==0.38.0
+# transformers v5 CASSE l'API de nombreux modèles communautaires (captioners,
+# modèles trust_remote_code, Qwen-VL / Qwen-TTS, etc. encore bloqués en v4).
+# Pour un outil qui doit charger plein de modèles, on reste sur le DERNIER v4.x :
+# la borne ci-dessous fait que pip installe automatiquement la version 4 la plus
+# récente (compatible + stable), tout en évitant v5.
+#   -> Passer en v5 en connaissance de cause : remplacer par  transformers>=5
+transformers>=4.50,<5
+peft==0.19.1
+accelerate==1.14.0
+safetensors==0.8.0
+pillow==12.2.0
+numpy==2.5.0
+# Tokenizer T5 (Flux) = SentencePiece + protobuf. Requis dès qu'on entraîne Flux.
+protobuf
+sentencepiece
+# Quantization nf4/int8 (QLoRA Flux & Z-Image sur 16 Go) — build récent requis
+# sur Blackwell (RTX 50xx). Requis pour les backends "flux"/"zimage" en nf4.
+bitsandbytes

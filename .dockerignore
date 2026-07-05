@@ -1,0 +1,31 @@
+# Environnements / builds lourds
+engine/.venv
+.venv
+node_modules
+dist
+build
+src-tauri/target
+
+# Sorties d'entraînement & caches
+engine/output
+output
+**/.soma_cache
+**/__pycache__
+*.pyc
+engine/*.log
+engine/*.err.log
+
+# Poids de modèles / datasets (jamais dans l'image ; montés en volume)
+*.safetensors
+*.ckpt
+*.pt
+lora01
+data
+models
+
+# Divers
+.git
+.gitignore
+*.md
+.claude
+scratchpad

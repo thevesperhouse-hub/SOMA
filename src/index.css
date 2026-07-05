@@ -1,0 +1,367 @@
+@import "tailwindcss";
+
+/* Tailwind v4 = CSS-first. On mappe nos tokens vers des utilitaires
+   (bg-surface, text-muted, border-border, bg-accent, ...). Les couleurs
+   pointent vers des variables qui basculent dark/light plus bas. */
+@theme {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+
+  --font-sans: "Inter", system-ui, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --radius-xl: 0.9rem;
+  --radius-2xl: 1.1rem;
+}
+
+/* Thème sobre, "produit pro" — pas de néon. Dark par défaut, light dispo. */
+:root {
+  --bg: #0e0f12;
+  --surface: #16181d;
+  --surface-2: #1d2026;
+  --border: #282b33;
+  --text: #e7e9ee;
+  --muted: #8b909b;
+  --accent: #5b8cff;        /* bleu sobre, un seul accent */
+  --accent-soft: #5b8cff22;
+  --good: #46c08a;
+  --warn: #d6a04a;
+  --bad: #d96a6a;
+}
+
+:root:not(.dark) {
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --surface-2: #f1f3f6;
+  --border: #e3e6ec;
+  --text: #1a1d23;
+  --muted: #6a7180;
+  --accent: #3b6df0;
+  --accent-soft: #3b6df015;
+  --good: #2fa46f;
+  --warn: #c08534;
+  --bad: #c85454;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  /* Caractère : halo d'ambiance en haut + trame de points visible.
+     ⚠️ PAS de background-attachment:fixed -> ça force un repaint de tout le
+     viewport au moindre changement (toutes les images clignotent pendant le
+     captioning live). On garde le fond attaché normalement. */
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(56rem 36rem at 50% -14%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%),
+    radial-gradient(circle at center, color-mix(in srgb, var(--text) 8%, transparent) 1px, transparent 1.6px);
+  background-size: auto, 22px 22px;
+}
+
+/* scrollbar discrète */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@keyframes pop {
+  0% { transform: scale(0.92); opacity: 0; }
+  60% { transform: scale(1.03); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-pop { animation: pop 0.35s ease-out; }
+
+@keyframes slidein {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-slidein { animation: slidein 0.3s ease-out; }
+
+/* --- Barre d'XP pixel --- */
+/* Balayage lumineux "cranté" : translateX (composité GPU) avec steps() pour un
+   rendu pixelisé. Un seul élément animé -> quasi gratuit. */
+@keyframes soma-sweep {
+  0%   { transform: translateX(-140%); }
+  100% { transform: translateX(140%); }
+}
+.soma-sweep {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.soma-sweep::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 70%, white), transparent);
+  animation: soma-sweep 2.6s steps(16) infinite;
+  opacity: 0.55;
+}
+/* clignotement cranté (cellule de tête, level-up) */
+@keyframes soma-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.soma-blink { animation: soma-blink 1.1s steps(2, jump-none) infinite; }
+
+/* survol de carte discret (polish, sans coût de layout) */
+.soma-hover { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+.soma-hover:hover { transform: translateY(-1px); box-shadow: 0 6px 20px -12px rgba(0,0,0,0.55); }
+
+/* carte : liseré accent au survol (vivant sans bouger la mise en page) */
+.soma-card { transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+.soma-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 14%, transparent) inset;
+}
+
+/* halo accent doux (action principale) */
+.soma-accent-glow { box-shadow: 0 6px 22px -8px var(--accent); }
+
+/* bouton principal : léger dégradé vertical (relief) */
+.soma-btn-primary {
+  background-image: linear-gradient(180deg, color-mix(in srgb, white 12%, var(--accent)), var(--accent));
+}
+
+/* marqueur accent devant les titres de carte (motif de marque) */
+.soma-tick {
+  width: 4px;
+  border-radius: 999px;
+  background: linear-gradient(var(--accent), color-mix(in srgb, var(--accent) 50%, transparent));
+}
+
+/* sheen : reflet qui traverse au survol (bouton principal) */
+.soma-sheen { position: relative; overflow: hidden; }
+.soma-sheen::after {
+  content: "";
+  position: absolute; top: 0; bottom: 0; left: 0; width: 35%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.22), transparent);
+  transform: translateX(-160%);
+}
+.soma-sheen:hover::after { animation: soma-sheen-move 0.75s ease; }
+@keyframes soma-sheen-move { to { transform: translateX(420%); } }
+
+/* wordmark de la marque */
+.soma-wordmark { letter-spacing: 0.32em; }
+
+/* isole chaque image sur sa propre couche de compositing stable : le navigateur
+   réutilise sa texture au lieu de la re-rasteriser aux repaints -> plus de flicker
+   des vignettes pendant le captioning (contention GPU avec le modèle). */
+.soma-img { transform: translateZ(0); backface-visibility: hidden; }
+
+/* respecte prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .soma-sweep::before, .soma-blink { animation: none; }
+  .soma-sheen:hover::after { animation: none; }
+}
+
+/* ================= THÈME : TERMINAL ================= */
+[data-theme="terminal"] {
+  --bg: #070b09;
+  --surface: #0c120e;
+  --surface-2: #111813;
+  --border: #253128;
+  --text: #cfd8d0;        /* gris quasi neutre (juste un soupçon de vert) */
+  --muted: #7d887f;
+  --accent: #43cf83;      /* vert phosphore un peu adouci — seul point vert marqué */
+  --accent-soft: #43cf8318;
+  --good: #43cf83;
+  --warn: #e6c34a;
+  --bad: #ef6b6b;
+  --font-sans: ui-monospace, "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
+}
+/* fond CRT : lueur verte très légère + trame de points retirée */
+[data-theme="terminal"] body {
+  background-image: radial-gradient(58rem 38rem at 50% -10%, #43cf830d, transparent 70%);
+  background-size: auto;
+}
+/* scanlines (overlay non bloquant) */
+[data-theme="terminal"] body::after {
+  content: "";
+  position: fixed; inset: 0; z-index: 60; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px);
+}
+/* cartes carrées, bord discret */
+[data-theme="terminal"] .soma-card { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 5%, transparent); }
+[data-theme="terminal"] .soma-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+/* titres : chevron ">" au lieu du trait, en minuscules */
+[data-theme="terminal"] .soma-tick { display: none; }
+[data-theme="terminal"] .soma-cardtitle { text-transform: lowercase; letter-spacing: 0; }
+[data-theme="terminal"] .soma-cardtitle::before { content: "> "; color: var(--accent); }
+/* boutons : crochets [ … ] */
+[data-theme="terminal"] .soma-btn { text-transform: uppercase; letter-spacing: 0.06em; }
+[data-theme="terminal"] .soma-btn::before { content: "[ "; }
+[data-theme="terminal"] .soma-btn::after { content: " ]"; }
+[data-theme="terminal"] .soma-btn-primary { background-image: none; }
+[data-theme="terminal"] .soma-accent-glow { box-shadow: 0 0 12px -3px color-mix(in srgb, var(--accent) 45%, transparent); }
+/* wordmark : prompt + curseur clignotant */
+[data-theme="terminal"] .soma-wordmark { letter-spacing: 0.12em; }
+[data-theme="terminal"] .soma-wordmark::before { content: "> "; color: var(--accent); }
+[data-theme="terminal"] .soma-wordmark::after {
+  content: "_"; color: var(--accent); animation: soma-blink 1s steps(2) infinite;
+}
+[data-theme="terminal"] .soma-logo-tile { border-radius: 2px; }
+[data-theme="terminal"] .soma-header { border-bottom-style: dashed; }
+
+/* DISPOSITION terminal : dashboard à gauche, config à droite, plus resserré */
+[data-theme="terminal"] .soma-grid {
+  grid-template-columns: 300px 1fr 300px;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+[data-theme="terminal"] .soma-col-c { order: 1; } /* XP à gauche */
+[data-theme="terminal"] .soma-col-b { order: 2; } /* dashboard au centre */
+[data-theme="terminal"] .soma-col-a { order: 3; } /* config à droite */
+
+/* ================= THÈME : MONO (noir & blanc, clair) ================= */
+[data-theme="mono"] {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f4f4f5;
+  --border: #dcdce0;
+  --text: #0b0b0d;
+  --muted: #74747c;
+  --accent: #111114;        /* le noir EST l'accent */
+  --accent-soft: #1111140d;
+  --good: #111114;
+  --warn: #55555c;
+  --bad: #111114;
+  --font-sans: "Inter", system-ui, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-2xl: 8px;
+}
+/* fond clair : léger voile gris en haut + trame de points grise discrète */
+[data-theme="mono"] body {
+  background-image:
+    radial-gradient(50rem 30rem at 50% -12%, #0000000a, transparent 70%),
+    radial-gradient(circle at center, #00000010 1px, transparent 1.5px);
+  background-size: auto, 22px 22px;
+}
+/* monochrome : pas de halo coloré, ombre neutre ; bordures nettes */
+[data-theme="mono"] .soma-btn-primary { background-image: none; }
+[data-theme="mono"] .soma-accent-glow { box-shadow: 0 6px 16px -10px #00000066; }
+[data-theme="mono"] .soma-card { box-shadow: 0 1px 2px -1px #0000000d; }
+[data-theme="mono"] .soma-card:hover { border-color: #b9b9c0; }
+[data-theme="mono"] .soma-tick { background: var(--text); }
+[data-theme="mono"] .soma-header { border-bottom-color: var(--text); }
+/* la tuile logo devient un carré noir plein (marque B&W) */
+[data-theme="mono"] .soma-logo-tile {
+  background: var(--text);
+  border-color: var(--text);
+}
+[data-theme="mono"] .soma-wordmark { letter-spacing: 0.28em; }
+
+/* ================= THÈME : ÉDITORIAL (crème, serif, clair) ================= */
+[data-theme="editorial"] {
+  --bg: #faf8ef;            /* blanc cassé très pâle (soupçon de jaune) */
+  --surface: #fffef9;
+  --surface-2: #f2efe3;
+  --border: #e7e2d3;
+  --text: #26251f;          /* encre neutre, pas marron */
+  --muted: #8a8578;
+  --accent: #5c7291;        /* bleu-encre poussiéreux (pas de marron) */
+  --accent-soft: #5c729114;
+  --good: #5f7d4f;
+  --warn: #b3853a;
+  --bad: #b1493f;
+  --font-sans: system-ui, "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius-lg: 0.6rem;
+  --radius-xl: 0.85rem;
+  --radius-2xl: 1.1rem;
+}
+/* fond papier : voile neutre très léger, pas de trame de points */
+[data-theme="editorial"] body {
+  background-image: radial-gradient(60rem 40rem at 50% -12%, #5c729110, transparent 70%);
+  background-size: auto;
+}
+/* titres & wordmark en SERIF (esprit revue) */
+[data-theme="editorial"] .soma-cardtitle {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+[data-theme="editorial"] .soma-wordmark {
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: 0.03em;
+  font-weight: 700;
+}
+/* cartes : ombre neutre douce */
+[data-theme="editorial"] .soma-card { box-shadow: 0 8px 26px -20px #2a2a2f; }
+[data-theme="editorial"] .soma-card:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+[data-theme="editorial"] .soma-accent-glow { box-shadow: 0 8px 20px -12px #5c729177; }
+[data-theme="editorial"] .soma-btn-primary { background-image: none; }
+/* aération : grille plus espacée */
+[data-theme="editorial"] .soma-grid { gap: 1.5rem; padding: 1.25rem; }
+
+/* ================= THÈME : BRUTALIST (contraste, bordures, ombres dures) ================= */
+[data-theme="brutal"] {
+  --bg: #edeae1;
+  --surface: #ffffff;
+  --surface-2: #e6e3d8;
+  --border: #111111;
+  --text: #0a0a0a;
+  --muted: #5c5c56;
+  --accent: #2b4acb;        /* bleu franc, pas néon */
+  --accent-soft: #2b4acb1a;
+  --good: #1c8a4e;
+  --warn: #c98a1a;
+  --bad: #d23b34;
+  --font-sans: "Helvetica Neue", Arial, system-ui, sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+}
+[data-theme="brutal"] body { background-image: none; }
+/* cartes : bord épais + ombre dure décalée, carré */
+[data-theme="brutal"] .soma-card {
+  border-width: 2px;
+  border-color: var(--text);
+  box-shadow: 4px 4px 0 var(--text);
+}
+[data-theme="brutal"] .soma-card:hover { border-color: var(--accent); box-shadow: 4px 4px 0 var(--accent); }
+/* boutons : carrés, bord épais, ombre dure, gras majuscule */
+[data-theme="brutal"] .soma-btn {
+  border: 2px solid var(--text);
+  box-shadow: 3px 3px 0 var(--text);
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+[data-theme="brutal"] .soma-btn:active { box-shadow: 1px 1px 0 var(--text); }
+[data-theme="brutal"] .soma-btn-primary { background-image: none; }
+[data-theme="brutal"] .soma-accent-glow { box-shadow: 3px 3px 0 var(--text); }
+/* titres : gros, gras, majuscules */
+[data-theme="brutal"] .soma-cardtitle { text-transform: uppercase; font-weight: 800; letter-spacing: 0.02em; }
+[data-theme="brutal"] .soma-tick { width: 6px; }
+[data-theme="brutal"] .soma-wordmark { text-transform: uppercase; font-weight: 800; letter-spacing: 0.1em; }
+[data-theme="brutal"] .soma-header { border-bottom-width: 2px; border-bottom-color: var(--text); }
+[data-theme="brutal"] .soma-logo-tile {
+  border-width: 2px;
+  border-color: var(--text);
+  box-shadow: 3px 3px 0 var(--text);
+}
+/* laisse la place aux ombres décalées (colonnes scrollables) */
+[data-theme="brutal"] .soma-col-a,
+[data-theme="brutal"] .soma-col-b,
+[data-theme="brutal"] .soma-col-c { padding: 2px 7px 7px 2px; }
