@@ -1,7 +1,7 @@
 import { cn } from "../lib/utils";
 
-/** Barre d'XP rétro : cellules "pixel" + balayage lumineux cranté sur la zone
- *  remplie. Tout est en CSS transform/opacity -> coût négligeable. */
+/** Retro XP bar: "pixel" cells + a stepped light sweep over the filled area.
+ *  Everything is CSS transform/opacity -> negligible cost. */
 export function PixelBar({
   pct,
   cells = 36,
@@ -15,7 +15,7 @@ export function PixelBar({
 }) {
   const p = Math.max(0, Math.min(1, pct));
   const filled = p * cells;
-  const edge = Math.floor(filled); // index de la cellule de tête (partielle)
+  const edge = Math.floor(filled); // index of the leading (partial) cell
 
   return (
     <div className={cn("relative", className)}>
@@ -38,7 +38,7 @@ export function PixelBar({
           );
         })}
       </div>
-      {/* balayage lumineux, borné à la portion remplie */}
+      {/* light sweep, clamped to the filled portion */}
       {p > 0.02 && (
         <div className="soma-sweep" style={{ right: `${(1 - p) * 100}%` }} />
       )}

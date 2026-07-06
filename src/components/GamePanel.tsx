@@ -3,8 +3,8 @@ import type { T } from "../lib/i18n";
 import { cn } from "../lib/utils";
 import { Card, CardHeader } from "./ui";
 
-/** Roue d'XP : jauge conique segmentée (encoches) + halo accent, anneau interne
- *  fin pour le run en cours. Progression animée en douceur (SVG dashoffset). */
+/** XP wheel: segmented conic gauge (notches) + accent halo, thin inner ring for
+ *  the current run. Smoothly animated progress (SVG dashoffset). */
 function XpWheel({
   globalPct,
   runPct,
@@ -21,7 +21,7 @@ function XpWheel({
   const Ri = R - 8.5;
   const Ci = 2 * Math.PI * Ri;
   const segments = 44;
-  const notch = 2.1; // largeur d'encoche (unités de path)
+  const notch = 2.1; // notch width (path units)
   return (
     <div className="relative h-28 w-28 shrink-0">
       <svg viewBox="0 0 80 80" className="h-full w-full -rotate-90">
@@ -31,9 +31,9 @@ function XpWheel({
             <stop offset="1" stopColor="var(--accent)" stopOpacity="0.55" />
           </linearGradient>
         </defs>
-        {/* piste externe */}
+        {/* outer track */}
         <circle cx="40" cy="40" r={R} fill="none" stroke="var(--surface-2)" strokeWidth="8" />
-        {/* anneau interne : run en cours */}
+        {/* inner ring: current run */}
         <circle cx="40" cy="40" r={Ri} fill="none" stroke="var(--surface-2)" strokeWidth="3" />
         <circle
           cx="40" cy="40" r={Ri} fill="none"
@@ -41,7 +41,7 @@ function XpWheel({
           strokeDasharray={Ci} strokeDashoffset={Ci * (1 - runPct)}
           style={{ transition: "stroke-dashoffset .5s ease" }}
         />
-        {/* progression globale + halo */}
+        {/* global progress + halo */}
         <circle
           cx="40" cy="40" r={R} fill="none"
           stroke="url(#xpgrad)" strokeWidth="8" strokeLinecap="round"
@@ -51,7 +51,7 @@ function XpWheel({
             filter: "drop-shadow(0 0 2.5px var(--accent))",
           }}
         />
-        {/* encoches : dashes couleur carte par-dessus -> jauge segmentée */}
+        {/* notches: surface-colored dashes on top -> segmented gauge */}
         <circle
           cx="40" cy="40" r={R} fill="none" stroke="var(--surface)" strokeWidth="9"
           strokeDasharray={`${notch} ${C / segments - notch}`}
@@ -101,7 +101,7 @@ export function GamePanel({
       />
       {enabled ? (
         <div className="flex flex-1 flex-col gap-4 px-5 pb-5">
-          {/* XP globale (persistante) */}
+          {/* global XP (persistent) */}
           <div className="flex items-center gap-4">
             <XpWheel globalPct={g.pct} runPct={r.pct} level={g.level} label={t("game.level")} />
             <div className="min-w-0 flex-1">

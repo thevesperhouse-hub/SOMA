@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-// Courbe de loss en SVG pur (aucune dep externe), rendu net et sobre.
+// Loss curve in pure SVG (no external dep), crisp and plain.
 export function LossChart({ losses }: { losses: number[] }) {
   const W = 640;
   const H = 200;
@@ -39,13 +39,13 @@ export function LossChart({ losses }: { losses: number[] }) {
         {path && <path d={path} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />}
         {losses.length < 2 && (
           <text x={W / 2} y={H / 2} textAnchor="middle" fill="var(--muted)" fontSize="13">
-            En attente de données…
+            Waiting for data…
           </text>
         )}
       </svg>
       <div className="mt-2 flex items-center justify-between text-xs text-muted tabular-nums">
         <span>min {min ? min.toFixed(4) : "—"}</span>
-        <span>actuel <span className="text-text font-medium">{last ? last.toFixed(4) : "—"}</span></span>
+        <span>current <span className="text-text font-medium">{last ? last.toFixed(4) : "—"}</span></span>
         <span>max {max ? max.toFixed(4) : "—"}</span>
       </div>
     </div>
