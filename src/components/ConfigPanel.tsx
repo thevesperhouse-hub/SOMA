@@ -65,7 +65,7 @@ export function ConfigPanel({
       arch,
       base_model: wasDefaultBase ? next.default_base : cfg.base_model,
       resolution: res,
-      gradient_checkpointing: res > 768, // ≤768 : OFF (vitesse) ; 1024 : ON (sinon OOM)
+      gradient_checkpointing: res > 768, // ≤768: OFF (speed); 1024: ON (else OOM)
       precision: recommendPrecision(next, vram),
     });
   };
