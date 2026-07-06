@@ -152,6 +152,10 @@ const FR: Dict = {
   "ds.thinking": "JoyCaption réfléchit…",
   "ds.save": "Enregistrer",
   "ds.noCaption": "(pas encore de caption)",
+  "ds.modelReady": "JoyCaption prêt (téléchargé)",
+  "ds.modelDownload": "JoyCaption se télécharge au 1er captioning (~8 Go)",
+  "ds.modelDownloading": "Téléchargement de JoyCaption…",
+  "ds.modelLoading": "Chargement du modèle…",
   "ds.empty": "Renseigne un dossier puis clique « Charger ».",
 };
 
@@ -299,6 +303,10 @@ const EN: Dict = {
   "ds.thinking": "JoyCaption is thinking…",
   "ds.save": "Save",
   "ds.noCaption": "(no caption yet)",
+  "ds.modelReady": "JoyCaption ready (downloaded)",
+  "ds.modelDownload": "JoyCaption downloads on first captioning (~8 GB)",
+  "ds.modelDownloading": "Downloading JoyCaption…",
+  "ds.modelLoading": "Loading model…",
   "ds.empty": "Set a folder then click “Load”.",
 };
 

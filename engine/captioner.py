@@ -2,7 +2,7 @@
 diffusion datasets). Loaded in 4-bit (bitsandbytes) then unloaded
 immediately. Writes an <image>.txt file per image.
 
-Pattern VRAM transitoire : load -> caption tout -> del + empty_cache.
+Transient VRAM pattern: load -> caption everything -> del + empty_cache.
 """
 import gc
 import glob
@@ -50,7 +50,7 @@ class CaptionJob(threading.Thread):
         try:
             self.emit(evt("status", state="captioning", config=self.cfg.model_dump()))
             run_captioning(self.cfg, self.emit, self._stop_evt)
-        except Exception as e:  # ne jamais crasher le serveur
+        except Exception as e:  # never crash the server
             self.emit(evt("status", state="error", message=str(e)))
             self.emit(evt("log", level="error", message=traceback.format_exc()))
 
@@ -62,14 +62,66 @@ class CaptionJob(threading.Thread):
 _MODEL_CACHE: dict = {}
 
 
+def model_cached(model_id) -> bool:
+    """True if the whole model is already in the local HF cache (no download needed)."""
+    try:
+        from huggingface_hub import snapshot_download
+
+        snapshot_download(model_id, local_files_only=True)
+        return True
+    except Exception:
+        return False
+
+
+def _download_with_progress(model_id, emit):
+    """Pre-download the model files while emitting `caption_model` progress events
+    (percent over total bytes), so the UI can show a real download bar on first use.
+    from_pretrained then loads straight from cache (no second download)."""
+    from huggingface_hub import HfApi, snapshot_download
+    import tqdm as _tqdm
+
+    try:
+        info = HfApi().model_info(model_id, files_metadata=True)
+        total = sum((getattr(s, "size", 0) or 0) for s in info.siblings) or 0
+    except Exception:
+        total = 0
+    state = {"done": 0, "pct": -1}
+
+    class _ProgressTqdm(_tqdm.tqdm):  # hf gives one byte-tqdm per file; sum globally
+        def update(self, n=1):
+            r = super().update(n)
+            state["done"] += n or 0
+            if total:
+                pct = int(state["done"] * 100 / total)
+                if pct != state["pct"]:
+                    state["pct"] = pct
+                    emit(evt("caption_model", state="downloading", percent=min(99, max(0, pct)),
+                             mb=round(state["done"] / 1e6), total_mb=round(total / 1e6)))
+            return r
+
+    snapshot_download(model_id, tqdm_class=_ProgressTqdm)
+
+
 def _get_caption_model(model_id, emit):
     cached = _MODEL_CACHE.get(model_id)
     if cached is not None:
+        emit(evt("caption_model", state="ready"))
         emit(evt("log", level="info", message="Captioning model already in memory (reused)"))
         return cached
+
+    if not model_cached(model_id):
+        emit(evt("caption_model", state="downloading", percent=0))
+        emit(evt("log", level="info",
+                 message=f"Downloading {model_id} (first run, ~8 GB)…"))
+        try:
+            _download_with_progress(model_id, emit)
+        except Exception:
+            pass  # from_pretrained below will fetch whatever is missing / raise
+
     import torch
     from transformers import AutoProcessor, BitsAndBytesConfig, LlavaForConditionalGeneration
 
+    emit(evt("caption_model", state="loading"))
     emit(evt("log", level="info", message=f"Loading {model_id} (4-bit)…"))
     proc = AutoProcessor.from_pretrained(model_id)
     bnb = BitsAndBytesConfig(
@@ -77,7 +129,7 @@ def _get_caption_model(model_id, emit):
         bnb_4bit_quant_type="nf4",
         bnb_4bit_compute_dtype=torch.bfloat16,
         bnb_4bit_use_double_quant=True,
-        # NE PAS quantizer le vision tower (SigLIP) ni le projecteur (leur attention
+        # Do NOT quantize the vision tower (SigLIP) or the projector (their attention
         # F.multi_head_attention_forward breaks on 4-bit weights).
         llm_int8_skip_modules=["vision_tower", "multi_modal_projector"],
     )
@@ -86,6 +138,7 @@ def _get_caption_model(model_id, emit):
     )
     model.eval()
     _MODEL_CACHE[model_id] = (proc, model)
+    emit(evt("caption_model", state="ready"))
     return proc, model
 
 

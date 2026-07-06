@@ -78,6 +78,10 @@ export default function App() {
   const [caption, setCaption] = useState<{
     running: boolean; index: number; total: number; current: string; map: Record<string, string>;
   }>({ running: false, index: 0, total: 0, current: "", map: {} });
+  // JoyCaption model download/load state (shown as a badge + progress in DatasetView)
+  const [captionModel, setCaptionModel] = useState<{
+    state: "idle" | "downloading" | "loading" | "ready"; percent: number;
+  }>({ state: "idle", percent: 0 });
   const [note, setNote] = useState(""); // latest engine log (loading, cache…)
   const [ckptRefresh, setCkptRefresh] = useState(0); // bump -> reload the LoRA list
 
@@ -129,6 +133,10 @@ export default function App() {
   function handleEvent(e: TrainEvent) {
     if (e.type === "log") {
       if (e.level !== "error") setNote(e.message); // shows the loading progress
+      return;
+    }
+    if (e.type === "caption_model") {
+      setCaptionModel({ state: e.state, percent: e.percent ?? 0 });
       return;
     }
     if (e.type === "status") {
@@ -314,6 +322,7 @@ export default function App() {
           {view === "datasets" && (
             <DatasetView
               caption={caption}
+              captionModel={captionModel}
               connected={connected}
               onStart={onCaptionStart}
               onStop={stopCaptioning}

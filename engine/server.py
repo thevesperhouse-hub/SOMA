@@ -112,6 +112,15 @@ async def caption_stop():
     return {"ok": True}
 
 
+@app.get("/api/caption/model_status")
+async def caption_model_status():
+    """Whether the JoyCaption model is already downloaded (else it fetches ~8 GB on
+    first use). Lets the UI show a 'ready' vs 'will download' badge upfront."""
+    from captioner import JOYCAPTION, model_cached
+
+    return {"model_id": JOYCAPTION, "cached": model_cached(JOYCAPTION)}
+
+
 _ZIMAGE_PAT = ("zit", "z_image", "zimage", "z-image")
 _NON_SDXL_PAT = ("flux", "wan", "qwen", "sd3", "hidream", "kolors", "hunyuan", "cosmos", "ltx")
 

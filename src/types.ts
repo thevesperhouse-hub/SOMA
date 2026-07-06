@@ -94,7 +94,21 @@ export interface LogEvent {
   message: string;
 }
 
-export type TrainEvent = StepEvent | SampleEvent | StatusEvent | LogEvent | CaptionEvent;
+export interface CaptionModelEvent {
+  type: "caption_model";
+  state: "downloading" | "loading" | "ready";
+  percent?: number;
+  mb?: number;
+  total_mb?: number;
+}
+
+export type TrainEvent =
+  | StepEvent
+  | SampleEvent
+  | StatusEvent
+  | LogEvent
+  | CaptionEvent
+  | CaptionModelEvent;
 
 export interface Sample {
   step: number;

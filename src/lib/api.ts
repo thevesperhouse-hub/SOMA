@@ -33,6 +33,15 @@ export async function stopCaptioning(): Promise<void> {
   await fetch(`${BASE}/api/caption/stop`, { method: "POST" });
 }
 
+export async function captionModelStatus(): Promise<{ model_id: string; cached: boolean }> {
+  try {
+    const r = await fetch(`${BASE}/api/caption/model_status`);
+    return await r.json();
+  } catch {
+    return { model_id: "", cached: false };
+  }
+}
+
 export interface ModelEntry {
   name: string;
   path: string;

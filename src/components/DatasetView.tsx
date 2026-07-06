@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CaptionConfig, DatasetImage } from "../types";
-import { datasetList, datasetThumbUrl, saveCaption } from "../lib/api";
+import { captionModelStatus, datasetList, datasetThumbUrl, saveCaption } from "../lib/api";
 import type { T } from "../lib/i18n";
 import { cn } from "../lib/utils";
 import { Button, Card, CardHeader, Field, Input, Progress } from "./ui";
@@ -15,8 +15,14 @@ export interface LiveCaption {
 
 const DEFAULT_PROMPT = "Write a detailed description for this image.";
 
+export interface CaptionModel {
+  state: "idle" | "downloading" | "loading" | "ready";
+  percent: number;
+}
+
 export function DatasetView({
   caption,
+  captionModel,
   connected,
   onStart,
   onStop,
@@ -24,12 +30,24 @@ export function DatasetView({
   t,
 }: {
   caption: LiveCaption;
+  captionModel: CaptionModel;
   connected: boolean;
   onStart: (cfg: CaptionConfig) => void;
   onStop: () => void;
   onReset: () => void;
   t: T;
 }) {
+  // Is JoyCaption already downloaded? (null = unknown / checking)
+  const [modelCached, setModelCached] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    captionModelStatus().then((s) => { if (alive) setModelCached(s.cached); });
+    return () => { alive = false; };
+  }, []);
+  // Once a download/load completed, treat the model as available.
+  useEffect(() => {
+    if (captionModel.state === "ready") setModelCached(true);
+  }, [captionModel.state]);
   const [dir, setDir] = useState(() => localStorage.getItem("soma.dir") || "");
   const [token, setToken] = useState("ohwx");
   const [overwrite, setOverwrite] = useState(true);
@@ -103,6 +121,24 @@ export function DatasetView({
     <div className="flex h-full flex-col gap-4 overflow-hidden p-4">
       <Card>
         <CardHeader title={t("ds.title")} hint={t("ds.hint")} />
+        <div className="px-5 pb-2">
+          {captionModel.state === "downloading" ? (
+            <div className="flex items-center gap-2 text-xs text-accent">
+              <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-accent" />
+              <span className="shrink-0">{t("ds.modelDownloading")} {captionModel.percent}%</span>
+              <div className="flex-1"><Progress value={captionModel.percent / 100} /></div>
+            </div>
+          ) : captionModel.state === "loading" ? (
+            <div className="flex items-center gap-2 text-xs text-muted">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+              {t("ds.modelLoading")}
+            </div>
+          ) : modelCached ? (
+            <div className="text-xs text-muted">✓ {t("ds.modelReady")}</div>
+          ) : modelCached === false ? (
+            <div className="text-xs text-muted">⭳ {t("ds.modelDownload")}</div>
+          ) : null}
+        </div>
         <div className="grid grid-cols-[1fr_auto_auto] items-end gap-3 px-5 pb-3">
           <Field label={t("ds.folder")}>
             <div className="flex gap-2">
