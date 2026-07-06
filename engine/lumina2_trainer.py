@@ -1,18 +1,18 @@
 """Real LoRA training for Lumina2 (Alpha-VLLM/Lumina-Image-2.0) — diffusers + peft.
 
-Lumina2 = DiT flow-matching, texte encodé par **Gemma-2** (pas T5/CLIP), VAE = Flux AE
-16 channels. Latents NON packés (le DiT patchifie en interne, patch_size 2, in_channels 16).
+Lumina2 = flow-matching DiT, text encoded by **Gemma-2** (no T5/CLIP), VAE = Flux AE
+16 channels. UNpacked latents (the DiT patchifies internally, patch_size 2, in_channels 16).
 
-Convention flow (vérifiée dans pipeline_lumina2.py) — IDENTIQUE à Z-Image : la pipeline
-NÈGE la sortie du transformer avant le scheduler (`noise_pred = -noise_pred`), et Lumina
-utilise t=0=bruit / t=1=image → timestep modèle = **1 - sigma**, donc le transformer prédit
-**(data - noise)** ⇒ CIBLE d'entraînement = **x1 - x0**. Embeds Gemma = `hidden_states[-2]`
+Flow convention (verified in pipeline_lumina2.py) — IDENTICAL to Z-Image: the pipeline
+NEGATES the transformer output before the scheduler (`noise_pred = -noise_pred`), and Lumina
+uses t=0=noise / t=1=image → model timestep = **1 - sigma**, so the transformer predicts
+**(data - noise)** ⇒ training TARGET = **x1 - x0**. Gemma embeds = `hidden_states[-2]`
 avec system prompt + " <Prompt Start> " + caption (max 256 tokens) + attention_mask.
 forward = transformer(hidden_states=latents[B,16,H,W], timestep=1-sigma,
 encoder_hidden_states=gemma[B,seq,2304], encoder_attention_mask[B,seq]).
 
-Config DiT lue depuis le repo (cap_feat_dim RÉEL = 2304, ≠ défaut 1024). Gemma + tokenizer
-depuis le subfolder du repo (non gated). VAE = ae.safetensors local (Flux AE, réutilisé).
+DiT config read from the repo (REAL cap_feat_dim = 2304, ≠ default 1024). Gemma + tokenizer
+from the repo subfolder (non-gated). VAE = local ae.safetensors (Flux AE, reused).
 """
 import gc
 import hashlib
@@ -39,7 +39,7 @@ def _find_vae(dit_path, cfg):
 
     root = _find_models_root(dit_path)
     if root is None:
-        raise RuntimeError("Arbo ComfyUI models/ introuvable près du DiT Lumina2 (vae).")
+        raise RuntimeError("ComfyUI models/ tree not found near the Lumina2 DiT (vae).")
     vae = clean_path(getattr(cfg, "zimage_vae", "")) or _auto_component(
         root, "vae", "ae.safetensors", ["ae", "flux"]
     )
@@ -73,7 +73,7 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
         except Exception as e:
             emit(evt("log", level="warn", message=f"cache nf4 illisible ({e}) → re-quantization"))
 
-    emit(evt("log", level="info", message=f"DiT Lumina2 → {precision} (1ère fois : lecture + quantization)…"))
+    emit(evt("log", level="info", message=f"Lumina2 DiT → {precision} (first time: read + quantization)…"))
     patch_single_file_fresh_quant()
     tf = Lumina2Transformer2DModel.from_single_file(
         dit_path, config=_LUMINA_REPO, subfolder="transformer",
@@ -86,7 +86,7 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
             tf.save_pretrained(nf4_dir)
             emit(evt("log", level="info", message="DiT nf4 mis en cache (runs suivants rapides)"))
         except Exception as e:
-            emit(evt("log", level="warn", message=f"cache nf4 non écrit: {e}"))
+            emit(evt("log", level="warn", message=f"nf4 cache not written: {e}"))
     return tf
 
 
@@ -158,7 +158,7 @@ def run_lumina2_training(cfg, emit, stop_event, family=None):
         for path, caption in data:
             px = norm(_load_square(path, res)).unsqueeze(0).to(device, torch.float32)
             raw = vae.encode(px).latent_dist.sample()
-            x1 = (raw - shift) * scaling  # [1,16,h,w] (NON packé)
+            x1 = (raw - shift) * scaling  # [1,16,h,w] (UNpacked)
             latents_cache.append((x1.squeeze(0).to("cpu", dtype), caption))
     del vae
     gc.collect(); torch.cuda.empty_cache()

@@ -1,24 +1,24 @@
 """Real LoRA training for Qwen-Image — diffusers + peft, QLoRA nf4 (PAS kohya).
 
-Qwen-Image = MMDiT ~20B, objectif flow-matching, texte encodé par Qwen2.5-VL-7B.
-Sur 16 Go : DiT bf16 (~40 Go) -> QUANTIFIÉ en nf4 + gradient checkpointing + on
-cache latents & embeddings texte puis on décharge VAE/Qwen2.5-VL (ne reste que le
+Qwen-Image = MMDiT ~20B, flow-matching objective, text encoded by Qwen2.5-VL-7B.
+On 16 GB: bf16 DiT (~40 GB) -> QUANTIZED to nf4 + gradient checkpointing + we
+cache latents & text embeddings then unload VAE/Qwen2.5-VL (only the
 DiT nf4).
 
-Fichiers LOCAUX (ComfyUI) : DiT (qwen_image_edit_*_bf16 de préférence, sinon
-fp8_e4m3fn casté en bf16), VAE (qwen_image_vae.safetensors = AutoencoderKLQwenImage
-3D). Le TEXT ENCODER Qwen2.5-VL est chargé depuis le repo HF (le fichier ComfyUI
-local est dans un layout non-HF ; l'embedding est caché une fois puis déchargé).
-Configs : DiT embarqué (model_configs/qwen_transformer), VAE via repo Qwen/Qwen-Image.
+LOCAL files (ComfyUI): DiT (qwen_image_edit_*_bf16 preferred, otherwise
+fp8_e4m3fn cast to bf16), VAE (qwen_image_vae.safetensors = AutoencoderKLQwenImage
+3D). The Qwen2.5-VL TEXT ENCODER is loaded from the HF repo (the local ComfyUI
+file is in a non-HF layout; the embedding is cached once then unloaded).
+Configs: bundled DiT (model_configs/qwen_transformer), VAE via the Qwen/Qwen-Image repo.
 
-API vérifiée par lecture de pipeline_qwenimage.py / transformer_qwenimage.py :
+API verified by reading pipeline_qwenimage.py / transformer_qwenimage.py:
   - encode VAE : image 5D [B,3,1,H,W] -> latent [B,16,1,H',W'] ; normalisation
-    model = (raw - latents_mean) / latents_std ; on aplatit T=1 puis PACK 2×2 (64 ch).
-  - texte : template système + drop des 34 premiers tokens, dernier hidden state,
-    masqué -> (embeds [B,seq,3584], mask [B,seq]).
+    model = (raw - latents_mean) / latents_std; flatten T=1 then PACK 2×2 (64 ch).
+  - text: system template + drop the first 34 tokens, last hidden state,
+    masked -> (embeds [B,seq,3584], mask [B,seq]).
   - transformer(hidden_states, timestep=sigma, encoder_hidden_states,
     encoder_hidden_states_mask, img_shapes=[[(1,H'/2,W'/2)]], guidance=None) ;
-    Qwen-Image N'EST PAS guidance-distillé -> guidance=None. CIBLE = x0 - x1.
+    Qwen-Image is NOT guidance-distilled -> guidance=None. TARGET = x0 - x1.
 """
 import gc
 import hashlib
@@ -27,15 +27,15 @@ import time
 
 from captioner import clean_path
 from events import evt
-# helpers génériques partagés avec le trainer Flux (packing 2×2, crop carré,
-# sigma logit-normal, export LoRA préfixé "transformer.")
+# generic helpers shared with the Flux trainer (2×2 packing, square crop,
+# logit-normal sigma, LoRA export prefixed "transformer.")
 from flux_trainer import _export_lora, _load_square, _pack_latents, _sample_sigma
 from real_trainer import _list_dataset
 
 _CFG_DIR = os.path.join(os.path.dirname(__file__), "model_configs", "qwen_transformer")
 _VAE_CONFIG_REPO = "Qwen/Qwen-Image"  # config AutoencoderKLQwenImage (subfolder vae)
 _TE_REPO = "Qwen/Qwen2.5-VL-7B-Instruct"  # text encoder + tokenizer (HF, correct)
-# gabarit système exact du pipeline diffusers + nb de tokens de préfixe à jeter
+# exact system template from the diffusers pipeline + number of prefix tokens to drop
 _PROMPT_TEMPLATE = (
     "<|im_start|>system\nDescribe the image by detailing the color, shape, size, "
     "texture, quantity, text, spatial relationships of the objects and background:"
@@ -44,7 +44,7 @@ _PROMPT_TEMPLATE = (
 _PROMPT_DROP_IDX = 34
 _TOK_MAX = 1024
 
-# LoRA sur les projections d'attention jointe (image + texte) — set standard et sûr.
+# LoRA on the joint-attention projections (image + text) — standard, safe set.
 _LORA_TARGETS = [
     "to_q", "to_k", "to_v", "to_out.0",
     "add_q_proj", "add_k_proj", "add_v_proj", "to_add_out",
@@ -56,10 +56,10 @@ _keys_patched = False
 
 
 def _patch_qwen_comfyui_keys():
-    """Les checkpoints ComfyUI Qwen ont le préfixe `model.diffusion_model.` mais le
+    """ComfyUI Qwen checkpoints have the `model.diffusion_model.` prefix but the
     mapping single_file de diffusers pour QwenImage est IDENTITY (ne le retire pas) →
-    toutes les clés seraient ignorées et le modèle resterait sur meta. On strip le
-    préfixe (no-op si absent → sûr aussi pour un single-file au format diffusers)."""
+    all keys would be ignored and the model would stay on meta. We strip the
+    prefix (no-op if absent → also safe for a diffusers-format single-file)."""
     global _keys_patched
     if _keys_patched:
         return
@@ -83,8 +83,8 @@ def _patch_qwen_comfyui_keys():
 
 
 def _load_transformer(dit_path, precision, cache_dir, emit):
-    """DiT Qwen-Image en nf4 (ou bf16). Même cache disque que Flux : quantifié 1×
-    (fp8/bf16 -> bf16 -> nf4) puis relu instantanément aux runs suivants."""
+    """Qwen-Image DiT in nf4 (or bf16). Same on-disk cache as Flux: quantized once
+    (fp8/bf16 -> bf16 -> nf4) then re-read instantly on later runs."""
     import torch
     from diffusers import QwenImageTransformer2DModel
 
@@ -109,7 +109,7 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
         except Exception as e:
             emit(evt("log", level="warn", message=f"cache nf4 illisible ({e}) → re-quantization"))
 
-    emit(evt("log", level="info", message=f"DiT Qwen-Image → {precision} (lecture ~40 Go, ~6 min la 1ère fois)…"))
+    emit(evt("log", level="info", message=f"Qwen-Image DiT → {precision} (reading ~40 GB, ~6 min the first time)…"))
     patch_single_file_fresh_quant()
     _patch_qwen_comfyui_keys()  # strip 'model.diffusion_model.' (checkpoints ComfyUI)
     # torch_dtype=bf16 : caste un checkpoint fp8_e4m3fn en bf16 avant quantization nf4
@@ -117,14 +117,14 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
     tf = QwenImageTransformer2DModel.from_single_file(
         dit_path, config=_CFG_DIR, quantization_config=bnb, torch_dtype=torch.bfloat16,
         device="cuda",
-    )  # déjà sur GPU quantizé (device="cuda") -> PAS de .to() (casse sur tenseurs meta)
+    )  # already on GPU quantized (device="cuda") -> NO .to() (breaks on meta tensors)
     if is_quantized(precision):
         try:
             os.makedirs(cache_dir, exist_ok=True)
             tf.save_pretrained(nf4_dir)
             emit(evt("log", level="info", message="DiT nf4 mis en cache (runs suivants rapides)"))
         except Exception as e:
-            emit(evt("log", level="warn", message=f"cache nf4 non écrit: {e}"))
+            emit(evt("log", level="warn", message=f"nf4 cache not written: {e}"))
     return tf
 
 
@@ -141,7 +141,7 @@ def _load_vae(vae_path, dtype, emit):
 
 def _load_text_encoder(precision, emit):
     """Qwen2.5-VL-7B depuis le repo HF (layout ComfyUI local non compatible HF).
-    nf4 pour tenir la VRAM pendant le pré-calcul, puis déchargé."""
+    nf4 to fit VRAM during pre-compute, then unloaded."""
     import torch
     from transformers import AutoTokenizer, Qwen2_5_VLForConditionalGeneration
 
@@ -161,8 +161,8 @@ def _load_text_encoder(precision, emit):
 
 
 def _encode_prompt(te, tok, prompt, device, dtype):
-    """Réplique _get_qwen_prompt_embeds du pipeline : gabarit + drop 34 tokens +
-    dernier hidden state masqué. Renvoie (embeds [1,seq,3584], mask [1,seq])."""
+    """Replicates the pipeline's _get_qwen_prompt_embeds: template + drop 34 tokens +
+    last masked hidden state. Returns (embeds [1,seq,3584], mask [1,seq])."""
     import torch
 
     txt = _PROMPT_TEMPLATE.format(prompt)
@@ -173,7 +173,7 @@ def _encode_prompt(te, tok, prompt, device, dtype):
     hidden = out.hidden_states[-1]  # [1, L, 3584]
     mask = toks.attention_mask
     valid = int(mask[0].sum().item())
-    emb = hidden[0, :valid][_PROMPT_DROP_IDX:]  # jette le préfixe système
+    emb = hidden[0, :valid][_PROMPT_DROP_IDX:]  # drop the system prefix
     emb = emb.unsqueeze(0).to(dtype)            # [1, seq, 3584]
     m = torch.ones(1, emb.shape[1], dtype=torch.long, device=emb.device)
     return emb, m
@@ -185,7 +185,7 @@ def _find_qwen_components(dit_path, cfg):
 
     root = _find_models_root(dit_path)
     if root is None:
-        raise RuntimeError("Arbo ComfyUI models/ introuvable près du DiT Qwen (vae).")
+        raise RuntimeError("ComfyUI models/ tree not found near the Qwen DiT (vae).")
     vae = clean_path(getattr(cfg, "zimage_vae", "")) or _auto_component(
         root, "vae", "qwen_image_vae.safetensors", ["qwen_image_vae", "qwen"]
     )
@@ -216,7 +216,7 @@ def run_qwen_training(cfg, emit, stop_event, family=None):
     vae_path = _find_qwen_components(dit_path, cfg)
 
     # VAE Qwen : compression spatiale = 2**len(temperal_downsample) (=8). res doit
-    # être divisible par vsf*2 (packing 2×2). On borne d'abord à vsf*2.
+    # be divisible by vsf*2 (2×2 packing). We first clamp to vsf*2.
     res = int(cfg.resolution)
     cache_dir = os.path.join(cfg.output_dir, ".soma_cache")
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])  # -> [-1,1]
@@ -237,11 +237,11 @@ def run_qwen_training(cfg, emit, stop_event, family=None):
             px = norm(_load_square(path, res)).unsqueeze(0).to(device, torch.float32)  # [1,3,H,W]
             px = px.unsqueeze(2)  # [1,3,1,H,W] (VAE 3D attend une dim temporelle)
             raw = vae.encode(px).latent_dist.sample()  # [1,z,1,H',W']
-            x1 = (raw - lm) / ls                         # normalisation modèle
+            x1 = (raw - lm) / ls                         # model normalization
             x1 = x1[:, :, 0]                              # aplatit T=1 -> [1,z,H',W']
             packed = _pack_latents(x1, 1, z, h_lat, h_lat).squeeze(0)  # [seq, z*4=64]
             latents_cache.append((packed.to("cpu", dtype), caption))
-    # RoPE : structure (frame=1, H'/2, W'/2), constante (résolution fixe)
+    # RoPE: structure (frame=1, H'/2, W'/2), constant (fixed resolution)
     img_shapes = [[(1, h_lat // 2, h_lat // 2)]]
     del vae, lm, ls
     gc.collect(); torch.cuda.empty_cache()

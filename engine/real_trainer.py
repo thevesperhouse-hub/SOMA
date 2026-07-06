@@ -1,8 +1,8 @@
 """Real LoRA training for SDXL — diffusers + peft (PAS kohya).
 
-Isolé pour ne charger torch/diffusers que quand simulate=False. Loop volontairement
-compacte et lisible : c'est NOTRE moteur, pas un wrapper. À affiner au premier vrai
-run (latent caching, bucketing, optimizers avancés viendront ensuite).
+Isolated so torch/diffusers only load when simulate=False. The loop is deliberately
+compact and readable: it's OUR engine, not a wrapper. To be refined on the first real
+run (latent caching, bucketing, advanced optimizers will come next).
 """
 import base64
 import glob
@@ -33,7 +33,7 @@ def _list_dataset(d):
 
 
 # Buckets SDXL ~1024² (multiples de 64) : on garde le ratio des images
-# (portrait/paysage) au lieu de center-cropper en carré, ce qui rognait le
+# (portrait/landscape) instead of center-cropping to a square, which cropped the
 # cadrage (corps/underboob) des images verticales.
 _BASE_BUCKETS_1024 = [
     (1024, 1024), (1152, 896), (896, 1152), (1216, 832), (832, 1216),
@@ -58,7 +58,7 @@ def _pick_bucket(w, h, buckets):
 
 def _load_bucketed(path, buckets):
     """Charge une image, choisit le bucket de ratio le plus proche, redimensionne
-    pour couvrir puis center-crop -> (PIL, W, H). Pas de carré forcé."""
+    to cover then center-crop -> (PIL, W, H). No forced square."""
     from PIL import Image
 
     img = Image.open(path).convert("RGB")
@@ -73,7 +73,7 @@ def _load_bucketed(path, buckets):
 
 def _export_comfyui_lora(unet, out_dir, name, emit, meta=None):
     """Convertit l'adaptateur PEFT en LoRA format kohya (.safetensors), chargeable
-    directement dans ComfyUI / A1111. `meta` = métadonnées SOMA embarquées."""
+    directly in ComfyUI / A1111. `meta` = embedded SOMA metadata."""
     try:
         import torch
         from diffusers.utils import convert_state_dict_to_kohya
@@ -81,7 +81,7 @@ def _export_comfyui_lora(unet, out_dir, name, emit, meta=None):
         from safetensors.torch import save_file
 
         kohya = convert_state_dict_to_kohya(get_peft_model_state_dict(unet))
-        # le wrapper PEFT laisse le préfixe "base_model_model_" -> ComfyUI veut
+        # the PEFT wrapper leaves the "base_model_model_" prefix -> ComfyUI wants
         # "lora_unet_" pour les couches de l'UNet.
         kohya = {
             k.replace("base_model_model_", "lora_unet_"): v.detach().to("cpu", torch.float16)
@@ -89,10 +89,10 @@ def _export_comfyui_lora(unet, out_dir, name, emit, meta=None):
         }
         path = os.path.join(out_dir, name + ".safetensors")
         save_file(kohya, path, metadata=meta or None)
-        emit(evt("log", level="info", message=f"LoRA ComfyUI exporté: {name}.safetensors"))
+        emit(evt("log", level="info", message=f"ComfyUI LoRA exported: {name}.safetensors"))
         return path
     except Exception as e:
-        emit(evt("log", level="warn", message=f"export ComfyUI échoué: {e}"))
+        emit(evt("log", level="warn", message=f"ComfyUI export failed: {e}"))
         return None
 
 
@@ -110,7 +110,7 @@ def run_real_training(cfg, emit, stop_event, family=None):
         "fp32": torch.float32,
     }.get(cfg.mixed_precision, torch.bfloat16)
 
-    # Objectif d'entraînement selon la famille (SDXL/Pony/Illustrious = epsilon ;
+    # Training objective by family (SDXL/Pony/Illustrious = epsilon;
     # NoobAI v-pred = v_prediction + zero-terminal-SNR).
     family = family or {}
     prediction = family.get("prediction", "epsilon")
@@ -127,7 +127,7 @@ def run_real_training(cfg, emit, stop_event, family=None):
     unet, vae = pipe.unet, pipe.vae
     te1, te2 = pipe.text_encoder, pipe.text_encoder_2
     tok1, tok2 = pipe.tokenizer, pipe.tokenizer_2
-    # Scheduler d'entraînement : on force prediction_type + zsnr selon la famille.
+    # Training scheduler: we force prediction_type + zsnr by family.
     sched_kwargs = {}
     if is_vpred:
         sched_kwargs["prediction_type"] = "v_prediction"
@@ -135,14 +135,14 @@ def run_real_training(cfg, emit, stop_event, family=None):
         sched_kwargs["rescale_betas_zero_snr"] = True
     noise_sched = DDPMScheduler.from_config(pipe.scheduler.config, **sched_kwargs)
     if is_vpred:
-        # le sampler doit aussi être en v-pred (sinon aperçus incohérents)
+        # the sampler must also be v-pred (else inconsistent previews)
         try:
             pipe.scheduler = pipe.scheduler.from_config(
                 pipe.scheduler.config, prediction_type="v_prediction",
                 rescale_betas_zero_snr=zsnr,
             )
         except Exception as e:
-            emit(evt("log", level="warn", message=f"sampler v-pred non appliqué: {e}"))
+            emit(evt("log", level="warn", message=f"v-pred sampler not applied: {e}"))
     emit(evt("log", level="info",
              message=f"Objective: {prediction}{' + zsnr' if zsnr else ''}"))
 
@@ -160,12 +160,12 @@ def run_real_training(cfg, emit, stop_event, family=None):
         target_modules=["to_k", "to_q", "to_v", "to_out.0"],
     )
     unet = get_peft_model(unet, lora)
-    pipe.unet = unet  # pour que les samples reflètent le LoRA
+    pipe.unet = unet  # so the samples reflect the LoRA
     if cfg.gradient_checkpointing:
         unet.enable_gradient_checkpointing()
     params = [p for p in unet.parameters() if p.requires_grad]
 
-    try:  # AdamW 8-bit si dispo (gain mémoire), sinon AdamW standard
+    try:  # AdamW 8-bit if available (memory saving), otherwise standard AdamW
         import bitsandbytes as bnb
 
         opt = bnb.optim.AdamW8bit(params, lr=cfg.learning_rate)
@@ -182,7 +182,7 @@ def run_real_training(cfg, emit, stop_event, family=None):
 
     buckets = _buckets_for_resolution(cfg.resolution)
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])
-    emit(evt("log", level="info", message="Bucketing par ratio activé (pas de crop carré)"))
+    emit(evt("log", level="info", message="Ratio bucketing enabled (no square crop)"))
 
     def encode_prompt(caption):
         cap = caption or f"a photo of {cfg.instance_token} person"
@@ -252,9 +252,9 @@ def _sample(pipe, unet, cfg, step, emit, device):
     import torch
 
     emit(evt("status", state="sampling", step=step))
-    # Le VAE est en fp32 (encodage stable à l'entraînement) mais les latents
-    # produits par l'UNet sont en bf16 -> mismatch au décodage. On aligne le VAE
-    # sur le dtype d'inférence le temps du sample, puis on restaure fp32.
+    # The VAE is fp32 (stable encoding during training) but the latents
+    # produced by the UNet are bf16 -> mismatch at decode. We align the VAE
+    # to the inference dtype for the sample, then restore fp32.
     infer_dtype = next(unet.parameters()).dtype
     vae_dtype = pipe.vae.dtype
     try:

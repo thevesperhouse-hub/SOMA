@@ -2,17 +2,17 @@
 
 Flux = MMDiT 12B, objectif flow-matching. Sur 16 Go : le transformer bf16 fait
 23,8 Go -> on le QUANTIFIE en nf4 (~6,8 Go) + gradient checkpointing + on cache
-latents & embeddings texte puis on décharge VAE/T5/CLIP (ne reste que le DiT nf4).
+latents & text embeddings then unload VAE/T5/CLIP (only the nf4 DiT remains).
 
-Fichiers LOCAUX (ComfyUI, zéro download lourd) : DiT (flux1-dev.safetensors), VAE
+LOCAL files (ComfyUI, zero heavy download): DiT (flux1-dev.safetensors), VAE
 (ae.safetensors = Flux AE), T5 (t5xxl_fp16.safetensors), CLIP-L (clip_l.safetensors).
-Configs : DiT embarqué (model_configs/flux_transformer), VAE via repo Z-Image (même
+Configs: bundled DiT (model_configs/flux_transformer), VAE via the Z-Image repo (same
 Flux AE, non gated), CLIP `openai/clip-vit-large-patch14`, T5 `google/t5-v1_1-xxl`
-(publics, quelques Mo). API vérifiée par lecture de pipeline_flux.py + smoke test.
+(public, a few MB). API verified by reading pipeline_flux.py + smoke test.
 
-Objectif (rectified flow) : x1 = (vae.encode-shift)*scaling PACKÉ 2×2 (64 channels) ;
-x0 ~ N(0,1) ; sigma logit-normal ; noisy = (1-sigma)*x1 + sigma*x0 ; timestep modèle
-= sigma ; guidance fixe (dev = guidance_embeds) ; CIBLE = x0 - x1 (Flux ne négate pas).
+Objective (rectified flow): x1 = (vae.encode-shift)*scaling PACKED 2×2 (64 channels);
+x0 ~ N(0,1); logit-normal sigma; noisy = (1-sigma)*x1 + sigma*x0; model timestep
+= sigma; fixed guidance (dev = guidance_embeds); TARGET = x0 - x1 (Flux does not negate).
 """
 import gc
 import hashlib
@@ -23,13 +23,13 @@ import time
 
 from captioner import clean_path
 from events import evt
-from real_trainer import _buckets_for_resolution, _list_dataset  # noqa: F401 (helpers génériques)
+from real_trainer import _buckets_for_resolution, _list_dataset  # noqa: F401 (generic helpers)
 
 _CFG_DIR = os.path.join(os.path.dirname(__file__), "model_configs", "flux_transformer")
-_VAE_CONFIG_REPO = "Tongyi-MAI/Z-Image-Turbo"  # même Flux AE 16 channels, repo NON gated
+_VAE_CONFIG_REPO = "Tongyi-MAI/Z-Image-Turbo"  # same Flux AE 16 channels, NON-gated repo
 _CLIP_REPO = "openai/clip-vit-large-patch14"
 _T5_REPO = "google/t5-v1_1-xxl"
-_GUIDANCE = 1.0  # Flux.1-dev est guidance-distillé -> valeur fixe à l'entraînement
+_GUIDANCE = 1.0  # Flux.1-dev is guidance-distilled -> fixed value during training
 _T5_MAX = 512
 
 _LORA_TARGETS = [
@@ -69,8 +69,8 @@ def _load_square(path, res):
 
 # ------------------------------------------------------------------ composants
 def _load_transformer(dit_path, precision, cache_dir, emit):
-    """DiT Flux en nf4 (ou bf16). Cache disque du modèle quantizé : quantifié 1×
-    (lecture 24 Go, ~4 min) puis relu ~7 Go instantanément aux runs suivants."""
+    """Flux DiT in nf4 (or bf16). On-disk cache of the quantized model: quantized once
+    (reading 24 GB, ~4 min) then re-read ~7 GB instantly on later runs."""
     import torch
     from diffusers import FluxTransformer2DModel
 
@@ -93,7 +93,7 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
         except Exception as e:
             emit(evt("log", level="warn", message=f"cache nf4 illisible ({e}) → re-quantization"))
 
-    emit(evt("log", level="info", message=f"DiT Flux → {precision} (lecture 24 Go, ~4 min la 1ère fois)…"))
+    emit(evt("log", level="info", message=f"Flux DiT → {precision} (reading 24 GB, ~4 min the first time)…"))
     patch_single_file_fresh_quant()
     # device="cuda" -> la quantization nf4 se fait sur GPU (sinon CPU = interminable)
     tf = FluxTransformer2DModel.from_single_file(
@@ -107,7 +107,7 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
             tf.save_pretrained(nf4_dir)
             emit(evt("log", level="info", message="DiT nf4 mis en cache (runs suivants rapides)"))
         except Exception as e:
-            emit(evt("log", level="warn", message=f"cache nf4 non écrit: {e}"))
+            emit(evt("log", level="warn", message=f"nf4 cache not written: {e}"))
     return tf
 
 
@@ -160,7 +160,7 @@ def _find_flux_components(dit_path, cfg):
 
     root = _find_models_root(dit_path)
     if root is None:
-        raise RuntimeError("Arbo ComfyUI models/ introuvable près du DiT Flux (vae, text_encoders).")
+        raise RuntimeError("ComfyUI models/ tree not found near the Flux DiT (vae, text_encoders).")
     vae = clean_path(getattr(cfg, "zimage_vae", "")) or _auto_component(root, "vae", "ae.safetensors", ["ae"])
     t5 = _auto_component(root, "text_encoders", "t5xxl_fp16.safetensors", ["t5xxl", "t5"])
     clip = _auto_component(root, "text_encoders", "clip_l.safetensors", ["clip_l", "clip-l"])
@@ -191,10 +191,10 @@ def _export_lora(transformer, out_dir, name, emit, meta=None):
             out[k] = v.detach().to("cpu", torch.float16)
         path = os.path.join(out_dir, name + ".safetensors")
         save_file(out, path, metadata=meta or None)
-        emit(evt("log", level="info", message=f"LoRA Flux exporté: {name}.safetensors"))
+        emit(evt("log", level="info", message=f"Flux LoRA exported: {name}.safetensors"))
         return path
     except Exception as e:
-        emit(evt("log", level="warn", message=f"export LoRA échoué: {e}"))
+        emit(evt("log", level="warn", message=f"LoRA export failed: {e}"))
         return None
 
 
@@ -239,7 +239,7 @@ def run_flux_training(cfg, emit, stop_event, family=None):
             x1 = (raw - shift) * scaling  # [1,16,h,w]
             packed = _pack_latents(x1, 1, 16, h, w).squeeze(0)  # [seq,64]
             latents_cache.append((packed.to("cpu", dtype), caption))
-    img_ids = _latent_image_ids(h // 2, w // 2, device, dtype)  # constant (résolution fixe)
+    img_ids = _latent_image_ids(h // 2, w // 2, device, dtype)  # constant (fixed resolution)
     del vae
     gc.collect(); torch.cuda.empty_cache()
 

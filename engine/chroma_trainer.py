@@ -1,18 +1,18 @@
 """Real LoRA training for Chroma — diffusers + peft, QLoRA nf4.
 
-Chroma (lodestones/Chroma1-Base) = archi Flux ÉLAGUÉE et DÉ-DISTILLÉE : même MMDiT
-(double + single stream, latents packés 2×2 → 64 channels, VAE Flux AE 16 channels) MAIS
+Chroma (lodestones/Chroma1-Base) = PRUNED and DE-DISTILLED Flux arch: same MMDiT
+(double + single stream, latents packed 2×2 → 64 channels, Flux AE VAE 16 channels) BUT
 **sans CLIP** (texte = T5-XXL seul, avec attention_mask) et **sans guidance** (le
 vecteur de modulation vient d'un petit "approximator" interne, pas d'un guidance embed).
 
-Réutilise les composants Flux locaux (ComfyUI) : VAE `ae.safetensors` (Flux AE) + T5
-`t5xxl_fp16.safetensors` — donc seul le DiT Chroma est à récupérer. Config du DiT lue
+Reuses the local Flux components (ComfyUI): VAE `ae.safetensors` (Flux AE) + T5
+`t5xxl_fp16.safetensors` — so only the Chroma DiT needs fetching. DiT config read
 depuis le repo NON gated `lodestones/Chroma1-Base` (subfolder transformer).
 
-API vérifiée (pipeline_chroma.py / transformer_chroma.py) :
+API verified (pipeline_chroma.py / transformer_chroma.py):
   transformer(hidden_states=packed[B,seq,64], timestep=sigma, encoder_hidden_states=
   T5[B,seq,4096], txt_ids=zeros[seq,3], img_ids[seq,3], attention_mask[B,seq]) ;
-  flow-matching, timestep=sigma (×1000 en interne), CIBLE = x0 - x1.
+  flow-matching, timestep=sigma (×1000 internally), TARGET = x0 - x1.
 """
 import gc
 import hashlib
@@ -22,7 +22,7 @@ import time
 
 from captioner import clean_path
 from events import evt
-# helpers génériques réutilisés du trainer Flux (archi identique)
+# generic helpers reused from the Flux trainer (identical arch)
 from flux_trainer import (
     _export_lora, _find_flux_components, _latent_image_ids, _load_square,
     _load_t5, _load_vae, _pack_latents, _sample_sigma,
@@ -40,7 +40,7 @@ _LORA_TARGETS = [
 
 
 def _load_transformer(dit_path, precision, cache_dir, emit):
-    """DiT Chroma en nf4 (ou bf16), même cache disque que Flux."""
+    """Chroma DiT in nf4 (or bf16), same on-disk cache as Flux."""
     import torch
     from diffusers import ChromaTransformer2DModel
 
@@ -65,7 +65,7 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
         except Exception as e:
             emit(evt("log", level="warn", message=f"cache nf4 illisible ({e}) → re-quantization"))
 
-    emit(evt("log", level="info", message=f"DiT Chroma → {precision} (1ère fois : lecture + quantization)…"))
+    emit(evt("log", level="info", message=f"Chroma DiT → {precision} (first time: read + quantization)…"))
     patch_single_file_fresh_quant()
     tf = ChromaTransformer2DModel.from_single_file(
         dit_path, config=_CHROMA_REPO, subfolder="transformer",
@@ -78,7 +78,7 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
             tf.save_pretrained(nf4_dir)
             emit(evt("log", level="info", message="DiT nf4 mis en cache (runs suivants rapides)"))
         except Exception as e:
-            emit(evt("log", level="warn", message=f"cache nf4 non écrit: {e}"))
+            emit(evt("log", level="warn", message=f"nf4 cache not written: {e}"))
     return tf
 
 
@@ -120,7 +120,7 @@ def run_chroma_training(cfg, emit, stop_event, family=None):
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])
     cache_dir = os.path.join(cfg.output_dir, ".soma_cache")
 
-    # Chroma réutilise le Flux AE + T5 (on ignore le CLIP renvoyé)
+    # Chroma reuses the Flux AE + T5 (we ignore the returned CLIP)
     vae_path, t5_path, _clip = _find_flux_components(dit_path, cfg)
 
     # ---------------- 1) cache latents (VAE Flux AE) ----------------
