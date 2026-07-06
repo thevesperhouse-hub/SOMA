@@ -44,7 +44,7 @@ export function DatasetView({
       const sel = await open({ directory: true, multiple: false, title: t("picker.dataset") });
       if (typeof sel === "string") setDir(sel);
     } catch {
-      /* navigateur : pas de picker natif */
+      /* browser: no native picker */
     }
   }
 
@@ -66,7 +66,7 @@ export function DatasetView({
   useEffect(() => { localStorage.setItem("soma.dir", dir); }, [dir]);
   useEffect(() => { if (cleanDir()) void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // fin d'un run -> recharge une fois depuis le disque (captions .txt écrites)
+  // end of a run -> reload once from disk (the .txt captions were written)
   const wasRunning = useRef(false);
   useEffect(() => {
     if (wasRunning.current && !caption.running) void load(false);
@@ -133,8 +133,8 @@ export function DatasetView({
         </div>
       </Card>
 
-      {/* Barre live compacte : la vraie action se passe DANS la grille (l'image
-          en cours se surligne + scroll auto + sa caption s'écrit dedans). */}
+      {/* Compact live bar: the real action happens IN the grid (the current image
+          highlights + auto-scrolls + its caption is written inline). */}
       {caption.running && (
         <div className="flex items-center gap-3 px-1">
           <span className="flex shrink-0 items-center gap-1.5 text-xs text-accent">
@@ -222,7 +222,7 @@ const Row = memo(function Row({
   t: T;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  // suit l'image en cours de tag : scroll auto dans la vue quand la ligne devient active
+  // follows the image being tagged: auto-scroll into view when the row becomes active
   useEffect(() => {
     if (active) ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [active]);

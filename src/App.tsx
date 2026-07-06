@@ -66,7 +66,7 @@ export default function App() {
   useEffect(() => { applyTheme(theme); }, [theme]);
   const [view, setView] = useState<View>(() => {
     const saved = localStorage.getItem("soma.view");
-    // migration des anciennes valeurs
+    // migrate old values
     if (saved === "train") return "dashboard";
     if (saved === "dataset") return "datasets";
     const valid: View[] = ["dashboard", "datasets", "models", "settings"];
@@ -75,11 +75,11 @@ export default function App() {
   const [caption, setCaption] = useState<{
     running: boolean; index: number; total: number; current: string; map: Record<string, string>;
   }>({ running: false, index: 0, total: 0, current: "", map: {} });
-  const [note, setNote] = useState(""); // dernier log moteur (chargement, cache…)
-  const [ckptRefresh, setCkptRefresh] = useState(0); // bump -> recharge la liste des LoRA
+  const [note, setNote] = useState(""); // latest engine log (loading, cache…)
+  const [ckptRefresh, setCkptRefresh] = useState(0); // bump -> reload the LoRA list
 
-  // XP GLOBALE persistante (cumulée sur tous les LoRA) — l'XP du run en cours s'y
-  // ajoute en direct, et est "banquée" définitivement quand le run se termine.
+  // Persistent GLOBAL XP (accumulated across all LoRAs) — the current run's XP is
+  // added live, and banked permanently when the run finishes.
   const [committedXp, setCommittedXp] = useState<number>(
     () => Number(localStorage.getItem("soma.xp.global") || 0)
   );
@@ -95,17 +95,17 @@ export default function App() {
         handleEvent,
         () => { clearTimeout(offline); if (!closed) setConnected(true); },
         () => {
-          // Effet nettoyé (StrictMode dev / démontage) -> on ignore complètement,
-          // sinon ce onclose (qui s'exécute APRÈS le cleanup) reprogrammerait un
-          // setConnected(false) fantôme et griserait le bouton tout seul.
+          // Effect cleaned up (StrictMode dev / unmount) -> ignore entirely, otherwise
+          // this onclose (which runs AFTER the cleanup) would reschedule a phantom
+          // setConnected(false) and grey out the button on its own.
           if (closed) return;
-          // Le WS se déconnecte brièvement à CHAQUE image (la boucle serveur est
-          // affamée par le modèle). On NE flappe PAS `connected` : il reste "en
-          // ligne" à travers ces micro-reconnexions (sinon toute l'app se re-render
-          // à chaque image = blink). Hors-ligne seulement après 4s réelles.
+          // The WS briefly disconnects on EVERY image (the server loop is starved by
+          // the model). We do NOT flap `connected`: it stays "online" across these
+          // micro-reconnects (otherwise the whole app re-renders on every image =
+          // blink). Offline only after a real 4s.
           clearTimeout(offline);
           offline = setTimeout(() => { if (!closed) setConnected(false); }, 4000);
-          retry = setTimeout(open, 600); // reconnexion auto
+          retry = setTimeout(open, 600); // auto-reconnect
         }
       );
     };
@@ -125,7 +125,7 @@ export default function App() {
 
   function handleEvent(e: TrainEvent) {
     if (e.type === "log") {
-      if (e.level !== "error") setNote(e.message); // affiche la progression de chargement
+      if (e.level !== "error") setNote(e.message); // shows the loading progress
       return;
     }
     if (e.type === "status") {
@@ -184,8 +184,8 @@ export default function App() {
   ]);
   const xp = computeXp(stats, unlocked.size);
 
-  // XP globale affichée = banque + XP du run en cours (montée live) ; quand le run
-  // se termine, on banque une seule fois (bankedRef) -> continuité sans double-comptage.
+  // Displayed global XP = bank + current run's XP (rising live); when the run ends,
+  // we bank once (bankedRef) -> continuity without double-counting.
   useEffect(() => {
     if (run.finished && !bankedRef.current) {
       bankedRef.current = true;
@@ -238,7 +238,7 @@ export default function App() {
         </header>
 
         <main className="flex flex-1 flex-col overflow-hidden">
-          {/* Dashboard : entraînement (3 colonnes) */}
+          {/* Dashboard: training (3 columns) */}
           {view === "dashboard" && (
           <div className="soma-grid grid h-full grid-cols-[340px_1fr_320px] gap-4 overflow-hidden p-4">
         {/* Gauche : config */}

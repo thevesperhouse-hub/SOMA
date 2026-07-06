@@ -25,7 +25,7 @@ export function ConfigPanel({
   const running = state === "training" || state === "sampling" || state === "starting";
   const set = <K extends keyof TrainConfig>(k: K, v: TrainConfig[K]) => setCfg({ ...cfg, [k]: v });
 
-  // Familles de modèles (registre côté moteur) : peuplent le sélecteur + les défauts.
+  // Model families (engine-side registry): populate the selector + the defaults.
   const [families, setFamilies] = useState<Family[]>([]);
   useEffect(() => {
     if (!connected) return;
@@ -35,7 +35,7 @@ export function ConfigPanel({
   }, [connected]);
   const fam = families.find((f) => f.id === cfg.arch);
 
-  // VRAM détectée -> défaut de précision intelligent (jamais forcé, surchargeable).
+  // Detected VRAM -> smart precision default (never forced, overridable).
   const [vram, setVram] = useState(0);
   useEffect(() => {
     if (!connected) return;
@@ -44,15 +44,15 @@ export function ConfigPanel({
     return () => { cancel = true; };
   }, [connected]);
 
-  // bf16 si les poids + marge d'activations tiennent ; sinon nf4 (si quantizable).
+  // bf16 if the weights + activation headroom fit; otherwise nf4 (if quantizable).
   const recommendPrecision = (f: Family | undefined, v: number): string => {
     if (!f || !f.quantizable || v <= 0) return "bf16";
     const bf16Weights = f.params_b * 2; // Go
     return bf16Weights + 5 <= v ? "bf16" : "nf4";
   };
 
-  // Change de famille : bascule les défauts (base, résolution, checkpointing, précision)
-  // seulement si l'utilisateur n'avait pas mis une valeur custom.
+  // Family change: switches the defaults (base, resolution, checkpointing, precision)
+  // only if the user hadn't set a custom value.
   const setArch = (arch: string) => {
     const next = families.find((f) => f.id === arch);
     if (!next) { set("arch", arch); return; }
@@ -70,7 +70,7 @@ export function ConfigPanel({
     });
   };
 
-  // Dossier des modèles (ComfyUI) + liste des checkpoints filtrée par archi
+  // Models folder (ComfyUI) + arch-filtered checkpoint list
   const [modelRoot, setModelRoot] = useState(() => localStorage.getItem("soma.modelRoot") || "");
   const [models, setModels] = useState<ModelEntry[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -88,7 +88,7 @@ export function ConfigPanel({
 
   useEffect(() => { localStorage.setItem("soma.modelRoot", modelRoot); }, [modelRoot]);
 
-  // (re)charge la liste quand l'archi, le dossier ou la connexion changent
+  // (re)load the list when the arch, folder or connection changes
   useEffect(() => {
     if (!connected) return;
     let cancel = false;
@@ -97,7 +97,7 @@ export function ConfigPanel({
       .then((r) => {
         if (cancel) return;
         setModels(r.models);
-        if (!modelRoot && r.root) setModelRoot(r.root); // adopte le dossier auto-détecté
+        if (!modelRoot && r.root) setModelRoot(r.root); // adopt the auto-detected folder
       })
       .finally(() => !cancel && setLoadingModels(false));
     return () => { cancel = true; };
@@ -105,8 +105,8 @@ export function ConfigPanel({
 
   const known = models.some((m) => m.path === cfg.base_model);
 
-  // Dataset : sélection + détection auto des captions (.txt à côté des images).
-  // Synchronisé avec l'onglet Dataset via localStorage "soma.dir".
+  // Dataset: selection + auto-detection of captions (.txt next to the images).
+  // Synced with the Dataset tab via localStorage "soma.dir".
   const cleanDir = (d: string) => d.trim().replace(/^["']+|["']+$/g, "").trim();
   const [ds, setDs] = useState<{ total: number; captioned: number } | null>(null);
   const [dsLoading, setDsLoading] = useState(false);
@@ -121,7 +121,7 @@ export function ConfigPanel({
     }
   }
 
-  // au montage : si aucun dataset, reprend celui de l'onglet Dataset
+  // on mount: if no dataset, reuse the one from the Dataset tab
   useEffect(() => {
     if (!cfg.dataset_dir) {
       const saved = localStorage.getItem("soma.dir");
@@ -129,7 +129,7 @@ export function ConfigPanel({
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // détecte images + captions dès qu'un dossier est renseigné
+  // detect images + captions as soon as a folder is set
   useEffect(() => {
     const dir = cleanDir(cfg.dataset_dir);
     if (dir) localStorage.setItem("soma.dir", cfg.dataset_dir);
@@ -217,8 +217,8 @@ export function ConfigPanel({
             )}
           >
             {recommendPrecision(fam, vram) === "nf4"
-              ? `${fam.label} en bf16 (~${(fam.params_b * 2).toFixed(0)} Go de poids) risque de déborder tes ${vram} Go — nf4 recommandé.`
-              : `Tes ${vram} Go permettent le bf16 (meilleure qualité).`}
+              ? `${fam.label} in bf16 (~${(fam.params_b * 2).toFixed(0)} GB of weights) may overflow your ${vram} GB — nf4 recommended.`
+              : `Your ${vram} GB allow bf16 (better quality).`}
           </div>
         )}
         <Field label={t("cfg.modelsDir")} hint={t("cfg.modelsDirHint")}>

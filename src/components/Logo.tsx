@@ -1,4 +1,4 @@
-// Marque SOMA — monogramme "S" organique sur tuile, dans la couleur d'accent.
+// SOMA mark — organic "S" monogram on a tile, in the accent color.
 export function Logo({ className = "h-8 w-8" }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" className={className} role="img" aria-label="SOMA">

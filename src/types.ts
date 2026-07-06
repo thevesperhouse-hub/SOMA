@@ -13,7 +13,7 @@ export interface TrainConfig {
   batch_size: number;
   gradient_checkpointing: boolean;
   mixed_precision: "bf16" | "fp16" | "fp32";
-  precision: string; // bf16 | int8 | nf4 (quantization des poids)
+  precision: string; // bf16 | int8 | nf4 (weight quantization)
   sample_every: number;
   sample_prompt: string;
   seed: number;

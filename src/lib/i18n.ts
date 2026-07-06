@@ -1,4 +1,4 @@
-// i18n (FR par défaut). t(key) -> chaîne ; fallback FR -> clé.
+// i18n (FR default). t(key) -> string; fallback FR -> key.
 export type Lang = "fr" | "en";
 
 type Dict = Record<string, string>;

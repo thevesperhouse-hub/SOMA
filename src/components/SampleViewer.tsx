@@ -2,9 +2,9 @@ import { useEffect, useRef } from "react";
 import type { Sample } from "../types";
 import { cn } from "../lib/utils";
 
-// Dessine un aperçu "personnage" procédural qui se précise avec `sharpness`
-// (0 = bruit/flou, 1 = net). Sert au mode démo pour matérialiser le
-// "watch your LoRA learn" sans GPU ni modèle.
+// Draws a procedural "character" preview that sharpens with `sharpness`
+// (0 = noise/blur, 1 = crisp). Used by demo mode to visualize the
+// "watch your LoRA learn" without a GPU or model.
 function drawProcedural(canvas: HTMLCanvasElement, seed: number, sharpness: number) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
