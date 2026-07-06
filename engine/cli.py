@@ -114,7 +114,7 @@ class _Renderer:
 def cmd_archs(_args):
     from families import FAMILIES
 
-    _banner("architectures disponibles", f"{len(FAMILIES)} familles")
+    _banner("available architectures", f"{len(FAMILIES)} families")
     for f in FAMILIES:
         q = f"{GOOD}nf4{R}" if f.get("quantizable") else f"{MUT}bf16{R}"
         print(f"  {B}{f['id']:<16}{R}{DIM}{f['label']:<22}{R} "
@@ -211,7 +211,7 @@ def main(argv=None):
     pt = sub.add_parser("train", help="run a training")
     pt.add_argument("--config", help="JSON config file (takes priority over the flags)")
     pt.add_argument("--arch", default="sdxl")
-    pt.add_argument("--base", default="", help="checkpoint local ou repo HF")
+    pt.add_argument("--base", default="", help="local checkpoint or HF repo")
     pt.add_argument("--dataset", default="")
     pt.add_argument("--output", default="output")
     pt.add_argument("--project", default="my-character")

@@ -129,10 +129,10 @@ def splash():
 # --------------------------------------------------------------- menu
 _MENU = [
     ("1", "Train a LoRA", "train"),
-    ("2", "Captionner un dataset", "caption"),
-    ("3", "Lancer l'UI web (serve)", "serve"),
+    ("2", "Caption a dataset", "caption"),
+    ("3", "Launch the web UI (serve)", "serve"),
     ("4", "Explore architectures", "archs"),
-    ("q", "Quitter", "quit"),
+    ("q", "Quit", "quit"),
 ]
 
 
@@ -147,7 +147,7 @@ def _menu_panel() -> Panel:
 def menu() -> str:
     console.print(Align.center(_menu_panel()))
     choices = [k for k, _, _ in _MENU]
-    sel = Prompt.ask("  [bold #43cf9f]>[/] choix", choices=choices, default="1", show_choices=False)
+    sel = Prompt.ask("  [bold #43cf9f]>[/] choice", choices=choices, default="1", show_choices=False)
     return dict((k, a) for k, _, a in _MENU)[sel]
 
 
@@ -273,7 +273,7 @@ def _gpu_text() -> Text:
         return b
 
     t = Text()
-    t.append(" charge ", style="dim"); t.append_text(bar(float(util) / 100))
+    t.append(" load ", style="dim"); t.append_text(bar(float(util) / 100))
     t.append(f" {util}%\n", style="bold")
     t.append(" vram   ", style="dim"); t.append_text(bar(float(mu) / float(mt)))
     t.append(f" {float(mu)/1024:.1f}/{float(mt)/1024:.0f}G\n", style="bold")
@@ -377,7 +377,7 @@ def train_flow():
     arch = Prompt.ask("  [bold #43cf9f]archi[/] [dim](sdxl, flux, qwen_image…)[/]",
                       choices=ids, default="sdxl", show_choices=False)
     fam = get_family(arch)
-    base = "demo" if demo else Prompt.ask("  [bold #43cf9f]base model[/] (chemin ou repo HF)",
+    base = "demo" if demo else Prompt.ask("  [bold #43cf9f]base model[/] (path or HF repo)",
                                           default=fam.get("default_base") or "")
     dataset = "" if demo else Prompt.ask("  [bold #43cf9f]dataset[/] (dossier d'images)")
     steps = int(Prompt.ask("  [bold #43cf9f]steps[/]", default="200" if demo else "1200"))
