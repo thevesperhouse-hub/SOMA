@@ -204,9 +204,9 @@ export function ConfigPanel({
             disabled={!fam?.quantizable}
             className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-50"
           >
-            <option value="bf16">bf16 — aucune quantization</option>
+            <option value="bf16">bf16 — no quantization</option>
             <option value="int8">int8 — 8-bit</option>
-            <option value="nf4">nf4 — 4-bit (mini VRAM)</option>
+            <option value="nf4">nf4 — 4-bit (min VRAM)</option>
           </select>
         </Field>
         {fam?.quantizable && vram > 0 && recommendPrecision(fam, vram) !== cfg.precision && (

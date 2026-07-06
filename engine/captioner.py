@@ -70,7 +70,7 @@ def _get_caption_model(model_id, emit):
     import torch
     from transformers import AutoProcessor, BitsAndBytesConfig, LlavaForConditionalGeneration
 
-    emit(evt("log", level="info", message=f"Chargement {model_id} (4-bit)…"))
+    emit(evt("log", level="info", message=f"Loading {model_id} (4-bit)…"))
     proc = AutoProcessor.from_pretrained(model_id)
     bnb = BitsAndBytesConfig(
         load_in_4bit=True,
