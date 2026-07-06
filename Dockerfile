@@ -36,12 +36,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# deps (cacheable layer): torch cu128 first, then the rest.
-# NB: do NOT upgrade pip (the apt one has no RECORD file -> "Cannot uninstall pip").
-COPY engine/requirements-base.txt engine/requirements-train.txt ./
+# deps in separate layers, ordered least -> most frequently changed, so editing the
+# small server deps never re-downloads torch. NB: do NOT upgrade pip (the apt one has no
+# RECORD file -> "Cannot uninstall pip").
+# 1) torch (biggest, changes only with CUDA_CHANNEL)
 RUN python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/${CUDA_CHANNEL} && \
-    python -m pip install hf_transfer && \
-    python -m pip install -r requirements-base.txt -r requirements-train.txt
+    python -m pip install hf_transfer
+# 2) heavy training deps (diffusers / transformers / peft / bitsandbytes …)
+COPY engine/requirements-train.txt ./
+RUN python -m pip install -r requirements-train.txt
+# 3) light server deps (fastapi / uvicorn / multipart / rich) — cheap to rebuild
+COPY engine/requirements-base.txt ./
+RUN python -m pip install -r requirements-base.txt
 
 # SSH server (optional, for a private tunnel on Vast). Separate layer AFTER pip so the
 # large torch layer stays cached (fast rebuilds).
