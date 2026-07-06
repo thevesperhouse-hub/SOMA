@@ -2,7 +2,7 @@
 
 PRX = compact flow-matching DiT (depth 16, hidden 1792, in_channels 16), text encoded
 by a **T5Gemma encoder** (context_in_dim 2304), AutoencoderKL VAE 16 channels. Distributed
-en **repo diffusers** (pas un single-file ComfyUI) → on charge les composants via
+as a **diffusers repo** (not a ComfyUI single-file) → components are loaded via
 from_pretrained(subfolder). base_model = HF repo (default Photoroom/prxpixel-t2i) ou dossier
 diffusers local.
 

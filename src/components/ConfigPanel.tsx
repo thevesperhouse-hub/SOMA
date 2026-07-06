@@ -82,7 +82,7 @@ export function ConfigPanel({
       const sel = await open({ directory: true, multiple: false, title: t("picker.modelsDir") });
       if (typeof sel === "string") setModelRoot(sel);
     } catch {
-      /* navigateur : pas de picker natif */
+      /* browser: no native picker */
     }
   }
 
@@ -117,7 +117,7 @@ export function ConfigPanel({
       const sel = await open({ directory: true, multiple: false, title: t("picker.dataset") });
       if (typeof sel === "string") set("dataset_dir", sel);
     } catch {
-      /* navigateur : pas de picker natif */
+      /* browser: no native picker */
     }
   }
 
@@ -194,7 +194,7 @@ export function ConfigPanel({
           label={t("cfg.precision")}
           hint={
             fam && vram > 0
-              ? `${vram} Go VRAM · ~${(fam.params_b * (cfg.precision === "nf4" ? 0.5 : cfg.precision === "int8" ? 1 : 2)).toFixed(1)} Go poids`
+              ? `${vram} GB VRAM · ~${(fam.params_b * (cfg.precision === "nf4" ? 0.5 : cfg.precision === "int8" ? 1 : 2)).toFixed(1)} GB weights`
               : t("cfg.precisionHint")
           }
         >

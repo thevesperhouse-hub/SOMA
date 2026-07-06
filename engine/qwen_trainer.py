@@ -51,13 +51,13 @@ _LORA_TARGETS = [
 ]
 
 
-# ------------------------------------------------------------------ composants
+# ------------------------------------------------------------------ components
 _keys_patched = False
 
 
 def _patch_qwen_comfyui_keys():
     """ComfyUI Qwen checkpoints have the `model.diffusion_model.` prefix but the
-    mapping single_file de diffusers pour QwenImage est IDENTITY (ne le retire pas) →
+    diffusers' single_file mapping for QwenImage is IDENTITY (does not strip it) →
     all keys would be ignored and the model would stay on meta. We strip the
     prefix (no-op if absent → also safe for a diffusers-format single-file)."""
     global _keys_patched
@@ -70,7 +70,7 @@ def _patch_qwen_comfyui_keys():
     def _map(checkpoint, **kw):
         out = {}
         for k, v in checkpoint.items():
-            # bitsandbytes nf4 exige du 16/32-bit -> caste les poids fp8 (ComfyUI) en bf16
+            # bitsandbytes nf4 requires 16/32-bit -> cast the fp8 (ComfyUI) weights to bf16
             if getattr(v, "dtype", None) == torch.float8_e4m3fn:
                 v = v.to(torch.bfloat16)
             out[k.replace("model.diffusion_model.", "")] = v
@@ -102,12 +102,12 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
     key = hashlib.sha1(f"{dit_path}|{os.path.getmtime(dit_path)}|{precision}".encode()).hexdigest()[:12]
     nf4_dir = os.path.join(cache_dir, f"qwen_{precision}_{key}")
     if os.path.isdir(nf4_dir):
-        emit(evt("log", level="info", message=f"DiT Qwen-Image {precision} en cache → chargement rapide…"))
+        emit(evt("log", level="info", message=f"DiT Qwen-Image {precision} cached → fast load…"))
         try:
             tf = QwenImageTransformer2DModel.from_pretrained(nf4_dir, torch_dtype=torch.bfloat16)
             return tf.to(device)
         except Exception as e:
-            emit(evt("log", level="warn", message=f"cache nf4 illisible ({e}) → re-quantization"))
+            emit(evt("log", level="warn", message=f"nf4 cache unreadable ({e}) → re-quantization"))
 
     emit(evt("log", level="info", message=f"Qwen-Image DiT → {precision} (reading ~40 GB, ~6 min the first time)…"))
     patch_single_file_fresh_quant()
@@ -122,15 +122,15 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
         try:
             os.makedirs(cache_dir, exist_ok=True)
             tf.save_pretrained(nf4_dir)
-            emit(evt("log", level="info", message="DiT nf4 mis en cache (runs suivants rapides)"))
+            emit(evt("log", level="info", message="nf4 DiT cached (later runs are fast)"))
         except Exception as e:
             emit(evt("log", level="warn", message=f"nf4 cache not written: {e}"))
     return tf
 
 
 def _load_vae(vae_path, dtype, emit):
-    # AutoencoderKLQwenImage NE supporte PAS from_single_file (pas dans la liste
-    # FromOriginalModelMixin) -> on charge depuis le repo (subfolder vae, ~250 Mo, public).
+    # AutoencoderKLQwenImage does NOT support from_single_file (not in the
+    # FromOriginalModelMixin) -> loaded from the repo (subfolder vae, ~250 MB, public).
     from diffusers import AutoencoderKLQwenImage
 
     emit(evt("log", level="info", message=f"VAE Qwen ({_VAE_CONFIG_REPO})…"))
@@ -140,7 +140,7 @@ def _load_vae(vae_path, dtype, emit):
 
 
 def _load_text_encoder(precision, emit):
-    """Qwen2.5-VL-7B depuis le repo HF (layout ComfyUI local non compatible HF).
+    """Qwen2.5-VL-7B from the HF repo (local ComfyUI layout not HF-compatible).
     nf4 to fit VRAM during pre-compute, then unloaded."""
     import torch
     from transformers import AutoTokenizer, Qwen2_5_VLForConditionalGeneration
@@ -180,7 +180,7 @@ def _encode_prompt(te, tok, prompt, device, dtype):
 
 
 def _find_qwen_components(dit_path, cfg):
-    """Localise la VAE Qwen dans l'arbo ComfyUI (relatif au DiT)."""
+    """Locate the Qwen VAE in the ComfyUI tree (relative to the DiT)."""
     from zimage_trainer import _auto_component, _find_models_root
 
     root = _find_models_root(dit_path)
@@ -190,7 +190,7 @@ def _find_qwen_components(dit_path, cfg):
         root, "vae", "qwen_image_vae.safetensors", ["qwen_image_vae", "qwen"]
     )
     if not vae or not os.path.isfile(vae):
-        raise RuntimeError(f"VAE Qwen (qwen_image_vae.safetensors) introuvable dans {root}")
+        raise RuntimeError(f"Qwen VAE (qwen_image_vae.safetensors) not found in {root}")
     return vae
 
 
@@ -205,7 +205,7 @@ def run_qwen_training(cfg, emit, stop_event, family=None):
 
     dit_path = clean_path(cfg.base_model)
     if not (dit_path.lower().endswith((".safetensors", ".ckpt")) and os.path.isfile(dit_path)):
-        raise RuntimeError("Qwen-Image : base_model doit pointer un DiT local (qwen_image_*.safetensors).")
+        raise RuntimeError("Qwen-Image: base_model must point to a local DiT (qwen_image_*.safetensors).")
 
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
@@ -215,7 +215,7 @@ def run_qwen_training(cfg, emit, stop_event, family=None):
 
     vae_path = _find_qwen_components(dit_path, cfg)
 
-    # VAE Qwen : compression spatiale = 2**len(temperal_downsample) (=8). res doit
+    # Qwen VAE: spatial compression = 2**len(temperal_downsample) (=8). res must
     # be divisible by vsf*2 (2×2 packing). We first clamp to vsf*2.
     res = int(cfg.resolution)
     cache_dir = os.path.join(cfg.output_dir, ".soma_cache")
@@ -235,7 +235,7 @@ def run_qwen_training(cfg, emit, stop_event, family=None):
     with torch.no_grad():
         for path, caption in data:
             px = norm(_load_square(path, res)).unsqueeze(0).to(device, torch.float32)  # [1,3,H,W]
-            px = px.unsqueeze(2)  # [1,3,1,H,W] (VAE 3D attend une dim temporelle)
+            px = px.unsqueeze(2)  # [1,3,1,H,W] (3D VAE expects a temporal dim)
             raw = vae.encode(px).latent_dist.sample()  # [1,z,1,H',W']
             x1 = (raw - lm) / ls                         # model normalization
             x1 = x1[:, :, 0]                              # aplatit T=1 -> [1,z,H',W']

@@ -1,7 +1,7 @@
 """Real LoRA training for Z-Image Turbo — diffusers ZImagePipeline + peft (PAS Ostris).
 
 Z-Image = DiT single-stream 6B, objectif flow-matching (rectified flow), pas epsilon.
-Composants : VAE (AutoencoderKL, latents 16 channels avec shift_factor), text encoder
+Components: VAE (AutoencoderKL, 16-channel latents with shift_factor), text encoder
 Qwen (chat template, on prend hidden_states[-2], dim 2560), transformer 6B.
 
 ⚠️ 16 GB constraint: can't hold VAE + Qwen + 6B transformer AT THE SAME TIME
@@ -30,13 +30,13 @@ from captioner import clean_path
 from events import evt
 
 # Generic helpers reused from the SDXL trainer (dataset + ratio bucketing).
-# Les buckets sont des multiples de 64 -> compatibles Z-Image (exige multiples de 16).
+# Buckets are multiples of 64 -> compatible with Z-Image (requires multiples of 16).
 from real_trainer import _buckets_for_resolution, _list_dataset, _load_bucketed
 
 ZIMAGE_DEFAULT = "Tongyi-MAI/Z-Image-Turbo"
-QWEN_TE_REPO = "Qwen/Qwen3-4B"  # config + tokenizer seulement (quelques Mo), PAS les poids
+QWEN_TE_REPO = "Qwen/Qwen3-4B"  # config + tokenizer only (a few MB), NOT the weights
 
-# LoRA sur les projections d'attention + FFN des blocs du transformer (pas les
+# LoRA on the attention + FFN projections of the transformer blocks (not the
 # embedders/adaLN/final_layer, qui ne matchent pas ces suffixes).
 _LORA_TARGETS = ["to_q", "to_k", "to_v", "to_out.0", "w1", "w2", "w3"]
 
@@ -76,7 +76,7 @@ def _auto_component(root, subdir, preferred, patterns):
 def _build_pipeline_from_files(dit_path, vae_path, te_path, dtype, emit, need_te=True, precision="bf16"):
     """Assemble ZImagePipeline from 3 separate ComfyUI files: Z-Image DiT,
     Flux VAE (ae.zimage), Qwen3-4B text encoder. Downloads ONLY small
-    configs/tokenizer (pas les poids lourds, on a tout en local).
+    configs/tokenizer (not the heavy weights, we have everything locally).
     need_te=False (embedding cache present) -> we DO NOT LOAD Qwen (8 GB).
     precision int8/nf4 -> quantifie le DiT (moins de VRAM, sur petites cartes)."""
     import safetensors.torch as st
@@ -121,12 +121,12 @@ def _build_pipeline_from_files(dit_path, vae_path, te_path, dtype, emit, need_te
         sd = st.load_file(te_path)
         sd = {(k[len("model."):] if k.startswith("model.") else k): v for k, v in sd.items()}
         sd.pop("lm_head.weight", None)
-        # assign=True : place directement les tenseurs bf16 du disque (pas de copie fp32)
+        # assign=True: places the disk bf16 tensors directly (no fp32 copy)
         missing, unexpected = te.load_state_dict(sd, strict=False, assign=True)
         real_missing = [k for k in missing if "rotary" not in k and "inv_freq" not in k]
         if real_missing or unexpected:
             emit(evt("log", level="warn",
-                     message=f"Qwen load: {len(real_missing)} manquants, {len(unexpected)} inattendus"))
+                     message=f"Qwen load: {len(real_missing)} missing, {len(unexpected)} unexpected"))
         tokenizer = AutoTokenizer.from_pretrained(QWEN_TE_REPO)
     else:
         emit(evt("log", level="info", message="Embedding cache present → Qwen not loaded (time saved)"))
@@ -203,7 +203,7 @@ def _load_cache(cache_file, emit):
         blob = torch.load(cache_file, map_location="cpu")
         return blob["latents"], blob["embeds"], blob["sample"]
     except Exception as e:
-        emit(evt("log", level="warn", message=f"cache illisible ({e}) → recalcul"))
+        emit(evt("log", level="warn", message=f"cache unreadable ({e}) → recompute"))
         return None
 
 
@@ -220,7 +220,7 @@ def _save_cache(cache_file, latents_cache, emb_cache, sample_emb, emit):
 
 def _sample_sigma(device):
     """Logit-normal: concentrates sampling toward the middle of the path (better
-    que l'uniforme pour le rectified flow)."""
+    than uniform for the rectified flow)."""
     import torch
 
     u = torch.randn(1, device=device)

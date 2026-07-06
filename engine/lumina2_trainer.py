@@ -7,7 +7,7 @@ Flow convention (verified in pipeline_lumina2.py) — IDENTICAL to Z-Image: the 
 NEGATES the transformer output before the scheduler (`noise_pred = -noise_pred`), and Lumina
 uses t=0=noise / t=1=image → model timestep = **1 - sigma**, so the transformer predicts
 **(data - noise)** ⇒ training TARGET = **x1 - x0**. Gemma embeds = `hidden_states[-2]`
-avec system prompt + " <Prompt Start> " + caption (max 256 tokens) + attention_mask.
+with system prompt + " <Prompt Start> " + caption (max 256 tokens) + attention_mask.
 forward = transformer(hidden_states=latents[B,16,H,W], timestep=1-sigma,
 encoder_hidden_states=gemma[B,seq,2304], encoder_attention_mask[B,seq]).
 
@@ -44,7 +44,7 @@ def _find_vae(dit_path, cfg):
         root, "vae", "ae.safetensors", ["ae", "flux"]
     )
     if not vae or not os.path.isfile(vae):
-        raise RuntimeError(f"VAE (ae.safetensors, Flux AE) introuvable dans {root}")
+        raise RuntimeError(f"VAE (ae.safetensors, Flux AE) not found in {root}")
     return vae
 
 
@@ -66,12 +66,12 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
     key = hashlib.sha1(f"{dit_path}|{os.path.getmtime(dit_path)}|{precision}".encode()).hexdigest()[:12]
     nf4_dir = os.path.join(cache_dir, f"lumina2_{precision}_{key}")
     if os.path.isdir(nf4_dir):
-        emit(evt("log", level="info", message=f"DiT Lumina2 {precision} en cache → chargement rapide…"))
+        emit(evt("log", level="info", message=f"DiT Lumina2 {precision} cached → fast load…"))
         try:
             tf = Lumina2Transformer2DModel.from_pretrained(nf4_dir, torch_dtype=torch.bfloat16)
             return tf.to(device)
         except Exception as e:
-            emit(evt("log", level="warn", message=f"cache nf4 illisible ({e}) → re-quantization"))
+            emit(evt("log", level="warn", message=f"nf4 cache unreadable ({e}) → re-quantization"))
 
     emit(evt("log", level="info", message=f"Lumina2 DiT → {precision} (first time: read + quantization)…"))
     patch_single_file_fresh_quant()
@@ -84,7 +84,7 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
         try:
             os.makedirs(cache_dir, exist_ok=True)
             tf.save_pretrained(nf4_dir)
-            emit(evt("log", level="info", message="DiT nf4 mis en cache (runs suivants rapides)"))
+            emit(evt("log", level="info", message="nf4 DiT cached (later runs are fast)"))
         except Exception as e:
             emit(evt("log", level="warn", message=f"nf4 cache not written: {e}"))
     return tf
@@ -133,7 +133,7 @@ def run_lumina2_training(cfg, emit, stop_event, family=None):
 
     dit_path = clean_path(cfg.base_model)
     if not (dit_path.lower().endswith((".safetensors", ".ckpt")) and os.path.isfile(dit_path)):
-        raise RuntimeError("Lumina2 : base_model doit pointer un DiT local (lumina*.safetensors).")
+        raise RuntimeError("Lumina2: base_model must point to a local DiT (lumina*.safetensors).")
 
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)

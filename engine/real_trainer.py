@@ -32,9 +32,9 @@ def _list_dataset(d):
     return pairs
 
 
-# Buckets SDXL ~1024² (multiples de 64) : on garde le ratio des images
+# SDXL buckets ~1024² (multiples of 64): we keep the image ratio
 # (portrait/landscape) instead of center-cropping to a square, which cropped the
-# cadrage (corps/underboob) des images verticales.
+# framing (body/underboob) of vertical images.
 _BASE_BUCKETS_1024 = [
     (1024, 1024), (1152, 896), (896, 1152), (1216, 832), (832, 1216),
     (1344, 768), (768, 1344), (1408, 704), (704, 1408),
@@ -57,7 +57,7 @@ def _pick_bucket(w, h, buckets):
 
 
 def _load_bucketed(path, buckets):
-    """Charge une image, choisit le bucket de ratio le plus proche, redimensionne
+    """Load an image, pick the nearest ratio bucket, resize
     to cover then center-crop -> (PIL, W, H). No forced square."""
     from PIL import Image
 
@@ -82,7 +82,7 @@ def _export_comfyui_lora(unet, out_dir, name, emit, meta=None):
 
         kohya = convert_state_dict_to_kohya(get_peft_model_state_dict(unet))
         # the PEFT wrapper leaves the "base_model_model_" prefix -> ComfyUI wants
-        # "lora_unet_" pour les couches de l'UNet.
+        # "lora_unet_" for the UNet layers.
         kohya = {
             k.replace("base_model_model_", "lora_unet_"): v.detach().to("cpu", torch.float16)
             for k, v in kohya.items()

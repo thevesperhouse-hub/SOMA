@@ -66,7 +66,7 @@ def _info_panel():
 
     info = Text.from_markup(
         f"  {_gpu_line()}\n"
-        f"  [dim]{len(FAMILIES)} architectures[/] · [dim]moteur maison diffusers + peft[/]",
+        f"  [dim]{len(FAMILIES)} architectures[/] · [dim]in-house diffusers + peft engine[/]",
         justify="center",
     )
     return Align.center(Panel(info, border_style="#177c72", width=72, padding=(0, 2)))
@@ -131,7 +131,7 @@ _MENU = [
     ("1", "Train a LoRA", "train"),
     ("2", "Captionner un dataset", "caption"),
     ("3", "Lancer l'UI web (serve)", "serve"),
-    ("4", "Explorer les architectures", "archs"),
+    ("4", "Explore architectures", "archs"),
     ("q", "Quitter", "quit"),
 ]
 

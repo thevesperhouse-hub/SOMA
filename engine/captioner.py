@@ -78,7 +78,7 @@ def _get_caption_model(model_id, emit):
         bnb_4bit_compute_dtype=torch.bfloat16,
         bnb_4bit_use_double_quant=True,
         # NE PAS quantizer le vision tower (SigLIP) ni le projecteur (leur attention
-        # F.multi_head_attention_forward casse sur des poids 4-bit).
+        # F.multi_head_attention_forward breaks on 4-bit weights).
         llm_int8_skip_modules=["vision_tower", "multi_modal_projector"],
     )
     model = LlavaForConditionalGeneration.from_pretrained(

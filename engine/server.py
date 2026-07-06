@@ -6,7 +6,7 @@ REST :
   POST /api/train/stop
 WS :
   /ws  -> training event stream (replays the latest events on
-          connexion pour qu'un client tardif voie la progression en cours).
+          connection so a late client sees the current progress).
 """
 import asyncio
 import glob
@@ -99,7 +99,7 @@ async def caption_start(cfg: CaptionConfig):
         return {"ok": False, "error": "A captioning is already running"}
     if hub.job is not None and hub.job.is_alive():
         return {"ok": False, "error": "A training is running — wait for it to finish"}
-    hub.history.clear()  # pas de rejeu des anciens events caption
+    hub.history.clear()  # no replay of old caption events
     hub.caption_job = CaptionJob(cfg, hub.emit_threadsafe)
     hub.caption_job.start()
     return {"ok": True}
@@ -219,7 +219,7 @@ async def gpu_stats():
 
 
 def _read_st_metadata(path: str) -> dict:
-    """Lit le __metadata__ d'un .safetensors sans charger les tenseurs (juste
+    """Read a .safetensors' __metadata__ without loading the tensors (just
     the JSON header: 8 length bytes + JSON)."""
     try:
         with open(path, "rb") as f:
@@ -283,7 +283,7 @@ async def gpu_info():
 @app.get("/api/models")
 async def list_models(arch: str = "sdxl", root: str = ""):
     root = clean_path(root) or _detect_model_root()
-    backend = get_family(arch)["backend"]  # une famille -> son backend -> ses dossiers
+    backend = get_family(arch)["backend"]  # one family -> its backend -> its folders
     models = _scan_models(root, backend) if root and os.path.isdir(root) else []
     return {"root": root, "models": models}
 

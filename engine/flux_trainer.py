@@ -67,7 +67,7 @@ def _load_square(path, res):
     return img.resize((res, res), Image.LANCZOS)
 
 
-# ------------------------------------------------------------------ composants
+# ------------------------------------------------------------------ components
 def _load_transformer(dit_path, precision, cache_dir, emit):
     """Flux DiT in nf4 (or bf16). On-disk cache of the quantized model: quantized once
     (reading 24 GB, ~4 min) then re-read ~7 GB instantly on later runs."""
@@ -86,12 +86,12 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
     key = hashlib.sha1(f"{dit_path}|{os.path.getmtime(dit_path)}|{precision}".encode()).hexdigest()[:12]
     nf4_dir = os.path.join(cache_dir, f"flux_{precision}_{key}")
     if os.path.isdir(nf4_dir):
-        emit(evt("log", level="info", message=f"DiT Flux {precision} en cache → chargement rapide…"))
+        emit(evt("log", level="info", message=f"DiT Flux {precision} cached → fast load…"))
         try:
             tf = FluxTransformer2DModel.from_pretrained(nf4_dir, torch_dtype=torch.bfloat16)
             return tf.to(device)
         except Exception as e:
-            emit(evt("log", level="warn", message=f"cache nf4 illisible ({e}) → re-quantization"))
+            emit(evt("log", level="warn", message=f"nf4 cache unreadable ({e}) → re-quantization"))
 
     emit(evt("log", level="info", message=f"Flux DiT → {precision} (reading 24 GB, ~4 min the first time)…"))
     patch_single_file_fresh_quant()
@@ -101,11 +101,11 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
         device="cuda",
     )
     tf = tf.to(device)
-    if is_quantized(precision):  # sauvegarde pour les prochains runs
+    if is_quantized(precision):  # save for the next runs
         try:
             os.makedirs(cache_dir, exist_ok=True)
             tf.save_pretrained(nf4_dir)
-            emit(evt("log", level="info", message="DiT nf4 mis en cache (runs suivants rapides)"))
+            emit(evt("log", level="info", message="nf4 DiT cached (later runs are fast)"))
         except Exception as e:
             emit(evt("log", level="warn", message=f"nf4 cache not written: {e}"))
     return tf
@@ -155,7 +155,7 @@ def _load_t5(t5_path, dtype, emit):
 
 
 def _find_flux_components(dit_path, cfg):
-    """Localise VAE + T5 + CLIP dans l'arbo ComfyUI (relatif au DiT)."""
+    """Locate VAE + T5 + CLIP in the ComfyUI tree (relative to the DiT)."""
     from zimage_trainer import _auto_component, _find_models_root
 
     root = _find_models_root(dit_path)
@@ -166,7 +166,7 @@ def _find_flux_components(dit_path, cfg):
     clip = _auto_component(root, "text_encoders", "clip_l.safetensors", ["clip_l", "clip-l"])
     for name, p in (("VAE", vae), ("T5", t5), ("CLIP-L", clip)):
         if not p or not os.path.isfile(p):
-            raise RuntimeError(f"{name} Flux introuvable dans {root}")
+            raise RuntimeError(f"{name} Flux not found in {root}")
     return vae, t5, clip
 
 
@@ -209,7 +209,7 @@ def run_flux_training(cfg, emit, stop_event, family=None):
 
     dit_path = clean_path(cfg.base_model)
     if not (dit_path.lower().endswith((".safetensors", ".ckpt")) and os.path.isfile(dit_path)):
-        raise RuntimeError("Flux : base_model doit pointer un DiT local (flux1-dev.safetensors).")
+        raise RuntimeError("Flux: base_model must point to a local DiT (flux1-dev.safetensors).")
 
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)

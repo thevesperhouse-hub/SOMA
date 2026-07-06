@@ -11,7 +11,7 @@ with styled terminal output (pure ANSI, zero deps — works in a container).
     python cli.py caption --dataset /data/mychar
 
 Sur Vast.ai : `docker run --gpus all -v /data:/data soma train --arch ... ` ; ou
-`serve` + exposer le port 8765 → ouvrir l'UI web dans le navigateur.
+`serve` + expose port 8765 → open the web UI in a browser.
 """
 import argparse
 import json
@@ -47,7 +47,7 @@ def _fmt_time(s):
 
 
 class _Renderer:
-    """Transforme les events du moteur en affichage terminal (barre live + logs)."""
+    """Turns engine events into terminal output (live bar + logs)."""
 
     def __init__(self):
         self.total = 0
@@ -84,7 +84,7 @@ class _Renderer:
                     print(f"  {GOOD}LoRA →{R} {out}")
             elif st == "error":
                 self._clear()
-                print(f"\n  {BAD}{B}✗ erreur{R} {e.get('message', '')}")
+                print(f"\n  {BAD}{B}✗ error{R} {e.get('message', '')}")
         elif t == "step":
             self._render_step(e)
         elif t == "sample":
@@ -104,7 +104,7 @@ class _Renderer:
                 f"{DIM}{step}/{total}{R}  loss={GOOD}{loss:.4f}{R}  "
                 f"{DIM}{rate:.2f}s/it · ETA {eta}{R}")
         self._clear()
-        # longueur visible (sans codes ANSI) pour l'effacement
+        # visible length (without ANSI codes) for clearing
         visible = f"  {'█'*fill}{'░'*(width-fill)} {int(frac*100):3d}% {step}/{total}  loss={loss:.4f}  {rate:.2f}s/it · ETA {eta}"
         self._last_len = len(visible)
         sys.stdout.write(line + "\r"); sys.stdout.flush()
@@ -130,7 +130,7 @@ def _build_cfg(args):
             data = json.load(fh)
         data["simulate"] = False
         return TrainConfig(**data)
-    # depuis les flags
+    # from the flags
     fields = dict(
         simulate=False, arch=args.arch, base_model=args.base, dataset_dir=args.dataset,
         project_name=args.project, instance_token=args.token, output_dir=args.output,
@@ -173,7 +173,7 @@ def cmd_serve(args):
     import uvicorn
 
     _banner("serveur", f"API + UI web sur http://{args.host}:{args.port}")
-    print(f"  {MUT}UI web{R} : ouvre {ACC}http://<ip>:{args.port}/{R} dans un navigateur")
+    print(f"  {MUT}web UI{R}: open {ACC}http://<ip>:{args.port}/{R} in a browser")
     print(f"  {MUT}API{R}    : POST /api/train/start · WS /ws\n")
     uvicorn.run("server:app", host=args.host, port=args.port, log_level="warning",
                 ws_ping_interval=None, ws_ping_timeout=None)
@@ -209,7 +209,7 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=False)
 
     pt = sub.add_parser("train", help="run a training")
-    pt.add_argument("--config", help="fichier JSON de config (prioritaire sur les flags)")
+    pt.add_argument("--config", help="JSON config file (takes priority over the flags)")
     pt.add_argument("--arch", default="sdxl")
     pt.add_argument("--base", default="", help="checkpoint local ou repo HF")
     pt.add_argument("--dataset", default="")
@@ -229,15 +229,15 @@ def main(argv=None):
     pt.add_argument("--seed", type=int, default=42)
     pt.set_defaults(func=cmd_train)
 
-    ps = sub.add_parser("serve", help="lancer le serveur API + UI web")
+    ps = sub.add_parser("serve", help="run the API server + web UI")
     ps.add_argument("--host", default="0.0.0.0")
     ps.add_argument("--port", type=int, default=8765)
     ps.set_defaults(func=cmd_serve)
 
-    pa = sub.add_parser("archs", help="lister les architectures")
+    pa = sub.add_parser("archs", help="list the architectures")
     pa.set_defaults(func=cmd_archs)
 
-    pc = sub.add_parser("caption", help="captionner un dataset")
+    pc = sub.add_parser("caption", help="caption a dataset")
     pc.add_argument("--dataset", required=True)
     pc.add_argument("--token", default="ohwx")
     pc.add_argument("--overwrite", action="store_true")

@@ -2,12 +2,12 @@
 
 Chroma (lodestones/Chroma1-Base) = PRUNED and DE-DISTILLED Flux arch: same MMDiT
 (double + single stream, latents packed 2×2 → 64 channels, Flux AE VAE 16 channels) BUT
-**sans CLIP** (texte = T5-XXL seul, avec attention_mask) et **sans guidance** (le
+**no CLIP** (text = T5-XXL only, with attention_mask) and **guidance-free** (the
 vecteur de modulation vient d'un petit "approximator" interne, pas d'un guidance embed).
 
 Reuses the local Flux components (ComfyUI): VAE `ae.safetensors` (Flux AE) + T5
 `t5xxl_fp16.safetensors` — so only the Chroma DiT needs fetching. DiT config read
-depuis le repo NON gated `lodestones/Chroma1-Base` (subfolder transformer).
+from the NON-gated repo `lodestones/Chroma1-Base` (subfolder transformer).
 
 API verified (pipeline_chroma.py / transformer_chroma.py):
   transformer(hidden_states=packed[B,seq,64], timestep=sigma, encoder_hidden_states=
@@ -58,12 +58,12 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
     key = hashlib.sha1(f"{dit_path}|{os.path.getmtime(dit_path)}|{precision}".encode()).hexdigest()[:12]
     nf4_dir = os.path.join(cache_dir, f"chroma_{precision}_{key}")
     if os.path.isdir(nf4_dir):
-        emit(evt("log", level="info", message=f"DiT Chroma {precision} en cache → chargement rapide…"))
+        emit(evt("log", level="info", message=f"DiT Chroma {precision} cached → fast load…"))
         try:
             tf = ChromaTransformer2DModel.from_pretrained(nf4_dir, torch_dtype=torch.bfloat16)
             return tf.to(device)
         except Exception as e:
-            emit(evt("log", level="warn", message=f"cache nf4 illisible ({e}) → re-quantization"))
+            emit(evt("log", level="warn", message=f"nf4 cache unreadable ({e}) → re-quantization"))
 
     emit(evt("log", level="info", message=f"Chroma DiT → {precision} (first time: read + quantization)…"))
     patch_single_file_fresh_quant()
@@ -76,14 +76,14 @@ def _load_transformer(dit_path, precision, cache_dir, emit):
         try:
             os.makedirs(cache_dir, exist_ok=True)
             tf.save_pretrained(nf4_dir)
-            emit(evt("log", level="info", message="DiT nf4 mis en cache (runs suivants rapides)"))
+            emit(evt("log", level="info", message="nf4 DiT cached (later runs are fast)"))
         except Exception as e:
             emit(evt("log", level="warn", message=f"nf4 cache not written: {e}"))
     return tf
 
 
 def _encode_t5_masked(t5, t5_tok, prompt, device, dtype):
-    """T5-XXL avec attention_mask (Chroma masque le padding). Renvoie (emb[1,seq,4096],
+    """T5-XXL with attention_mask (Chroma masks the padding). Returns (emb[1,seq,4096],
     mask[1,seq])."""
     import torch
 
@@ -105,7 +105,7 @@ def run_chroma_training(cfg, emit, stop_event, family=None):
 
     dit_path = clean_path(cfg.base_model)
     if not (dit_path.lower().endswith((".safetensors", ".ckpt")) and os.path.isfile(dit_path)):
-        raise RuntimeError("Chroma : base_model doit pointer un DiT local (chroma*.safetensors).")
+        raise RuntimeError("Chroma: base_model must point to a local DiT (chroma*.safetensors).")
 
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
