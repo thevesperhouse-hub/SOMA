@@ -1,20 +1,20 @@
-"""Quantization partagée (bitsandbytes) pour les backends transformer.
+"""Shared quantization (bitsandbytes) for the transformer backends.
 
-Centralise 3 choses (utilisées par Z-Image, Flux, etc.) :
-  - construire la BitsAndBytesConfig selon la précision demandée
-  - le contournement du bug diffusers `from_single_file` + bnb (pre_quantized=True
-    par défaut alors qu'on quantifie un .safetensors bf16 "frais")
-  - rappel : après un load quantizé from_single_file, le modèle est sur CPU ->
-    il faut `.to("cuda")` pour déclencher la vraie quantization GPU.
+Centralizes 3 things (used by Z-Image, Flux, etc.):
+  - build the BitsAndBytesConfig for the requested precision
+  - work around the diffusers `from_single_file` + bnb bug (pre_quantized=True by
+    default even though we're quantizing a "fresh" bf16 .safetensors)
+  - note: after a quantized from_single_file load the model is on CPU, so
+    from_single_file must be given device="cuda" to run the real GPU quantization.
 
-precision : "bf16" (aucune quant) | "int8" (bnb 8-bit) | "nf4" (bnb 4-bit).
+precision: "bf16" (no quant) | "int8" (bnb 8-bit) | "nf4" (bnb 4-bit).
 """
 
 _patched = False
 
 
 def bnb_config(precision: str):
-    """Renvoie une BitsAndBytesConfig ou None (bf16 = pas de quantization)."""
+    """Return a BitsAndBytesConfig or None (bf16 = no quantization)."""
     if precision in (None, "", "bf16", "fp16", "fp32"):
         return None
     import torch
@@ -33,8 +33,8 @@ def bnb_config(precision: str):
 
 
 def patch_single_file_fresh_quant():
-    """Force pre_quantized=False sur le quantizer créé par from_single_file, sinon
-    il exige un checkpoint déjà quantizé (`bitsandbytes__*`). Idempotent."""
+    """Force pre_quantized=False on the quantizer created by from_single_file, otherwise
+    it requires an already-quantized checkpoint (`bitsandbytes__*`). Idempotent."""
     global _patched
     if _patched:
         return

@@ -1,7 +1,7 @@
-"""Petit helper d'événements envoyés au front via WebSocket.
+"""Small helper for events sent to the front-end over WebSocket.
 
-Un événement = un dict JSON-sérialisable avec un champ ``type`` et un timestamp.
-Types utilisés :
+An event = a JSON-serializable dict with a ``type`` field and a timestamp.
+Types used:
   - status : {state: starting|training|sampling|done|stopped|error, ...}
   - step   : {step, total_steps, loss, lr, secs}
   - sample : {step, total_steps, placeholder, image?|seed, prompt, sharpness}
