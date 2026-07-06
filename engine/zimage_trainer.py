@@ -28,6 +28,7 @@ import time
 
 from captioner import clean_path
 from events import evt
+from train_utils import make_lr_scheduler
 
 # Generic helpers reused from the SDXL trainer (dataset + ratio bucketing).
 # Buckets are multiples of 64 -> compatible with Z-Image (requires multiples of 16).
@@ -361,6 +362,7 @@ def run_zimage_training(cfg, emit, stop_event):
 
     emit(evt("status", state="training", total_steps=cfg.max_steps))
     transformer.train()
+    sched = make_lr_scheduler(opt, cfg.max_steps, getattr(cfg, "lr_warmup_ratio", 0.05))
     t0 = time.time()
     step = 0
     idx = list(range(len(latents_cache)))
@@ -388,10 +390,11 @@ def run_zimage_training(cfg, emit, stop_event):
             torch.nn.utils.clip_grad_norm_(params, 1.0)
             opt.step()
             opt.zero_grad()
+            sched.step()
 
             emit(
                 evt("step", step=step, total_steps=cfg.max_steps,
-                    loss=round(loss.item(), 4), lr=cfg.learning_rate,
+                    loss=round(loss.item(), 4), lr=sched.get_last_lr()[0],
                     secs=round(time.time() - t0, 1))
             )
             if step % cfg.sample_every == 0 or step == cfg.max_steps:

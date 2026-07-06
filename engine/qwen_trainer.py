@@ -27,6 +27,7 @@ import time
 
 from captioner import clean_path
 from events import evt
+from train_utils import make_lr_scheduler
 # generic helpers shared with the Flux trainer (2×2 packing, square crop,
 # logit-normal sigma, LoRA export prefixed "transformer.")
 from flux_trainer import _export_lora, _load_square, _pack_latents, _sample_sigma
@@ -276,6 +277,7 @@ def run_qwen_training(cfg, emit, stop_event, family=None):
 
     emit(evt("status", state="training", total_steps=cfg.max_steps))
     transformer.train()
+    sched = make_lr_scheduler(opt, cfg.max_steps, getattr(cfg, "lr_warmup_ratio", 0.05))
     t0 = time.time()
     step = 0
     import random
@@ -307,9 +309,10 @@ def run_qwen_training(cfg, emit, stop_event, family=None):
             torch.nn.utils.clip_grad_norm_(params, 1.0)
             opt.step()
             opt.zero_grad()
+            sched.step()
 
             emit(evt("step", step=step, total_steps=cfg.max_steps, loss=round(loss.item(), 4),
-                     lr=cfg.learning_rate, secs=round(time.time() - t0, 1)))
+                     lr=sched.get_last_lr()[0], secs=round(time.time() - t0, 1)))
         if stop_event.is_set():
             break
 

@@ -13,6 +13,7 @@ import time
 
 from captioner import clean_path
 from events import evt
+from train_utils import make_lr_scheduler, maybe_drop, min_snr_weights
 # generic helpers shared with the SDXL trainer
 from real_trainer import (
     _buckets_for_resolution, _export_comfyui_lora, _list_dataset, _load_bucketed,
@@ -92,6 +93,7 @@ def run_sd15_training(cfg, emit, stop_event, family=None):
 
     def encode_prompt(caption):
         cap = caption or f"a photo of {cfg.instance_token} person"
+        cap = maybe_drop(cap, getattr(cfg, "caption_dropout", 0.0))
         ids = tok(cap, padding="max_length", max_length=tok.model_max_length,
                   truncation=True, return_tensors="pt").input_ids.to(device)
         with torch.no_grad():
@@ -100,6 +102,7 @@ def run_sd15_training(cfg, emit, stop_event, family=None):
 
     emit(evt("status", state="training", total_steps=cfg.max_steps))
     unet.train()
+    sched = make_lr_scheduler(opt, cfg.max_steps, getattr(cfg, "lr_warmup_ratio", 0.05))
     t0 = time.time()
     step = 0
     while step < cfg.max_steps:
@@ -119,13 +122,17 @@ def run_sd15_training(cfg, emit, stop_event, family=None):
             emb = encode_prompt(caption)
             pred = unet(noisy, ts, encoder_hidden_states=emb).sample
             target = noise_sched.get_velocity(latents, noise, ts) if is_vpred else noise
-            loss = torch.nn.functional.mse_loss(pred.float(), target.float())
+            per = torch.nn.functional.mse_loss(
+                pred.float(), target.float(), reduction="none").mean(dim=[1, 2, 3])
+            w = min_snr_weights(noise_sched, ts, getattr(cfg, "min_snr_gamma", 5.0), prediction).to(per.device)
+            loss = (per * w).mean()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(params, 1.0)
             opt.step()
             opt.zero_grad()
+            sched.step()
             emit(evt("step", step=step, total_steps=cfg.max_steps, loss=round(loss.item(), 4),
-                     lr=cfg.learning_rate, secs=round(time.time() - t0, 1)))
+                     lr=sched.get_last_lr()[0], secs=round(time.time() - t0, 1)))
             if step % cfg.sample_every == 0 or step == cfg.max_steps:
                 _sample(pipe, unet, cfg, step, emit, device)
         if stop_event.is_set():
