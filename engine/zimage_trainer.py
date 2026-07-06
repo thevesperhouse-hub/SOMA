@@ -4,19 +4,19 @@ Z-Image = DiT single-stream 6B, objectif flow-matching (rectified flow), pas eps
 Composants : VAE (AutoencoderKL, latents 16 channels avec shift_factor), text encoder
 Qwen (chat template, on prend hidden_states[-2], dim 2560), transformer 6B.
 
-⚠️ Contrainte 16 Go : impossible de tenir VAE + Qwen + transformer 6B EN MÊME TEMPS
-avec les gradients. Stratégie = on PRÉ-CALCULE une fois les latents VAE et les
-embeddings texte (+ le prompt d'aperçu), on décharge le text encoder et on ne garde
-que le transformer sur le GPU pour la boucle d'entraînement. Le VAE reste au chaud
-(CPU) et remonte sur le GPU juste le temps d'un aperçu.
+⚠️ 16 GB constraint: can't hold VAE + Qwen + 6B transformer AT THE SAME TIME
+with gradients. Strategy = we PRE-COMPUTE once the VAE latents and the
+text embeddings (+ the preview prompt), unload the text encoder and keep only
+the transformer on the GPU for the training loop. The VAE stays warm
+(CPU) and moves back to the GPU just for a preview.
 
-Détails d'objectif (vérifiés sur la pipeline diffusers) :
-- latent "modèle" x1 = (vae.encode(img).sample() - shift_factor) * scaling_factor
+Objective details (verified against the diffusers pipeline):
+- "model" latent x1 = (vae.encode(img).sample() - shift_factor) * scaling_factor
 - bruit x0 ~ N(0,1) ; sigma ∈ (0,1) (logit-normal)
-- latent bruité = sigma*x0 + (1-sigma)*x1   (sigma=1 -> bruit pur, sigma=0 -> data)
-- timestep passé au modèle = 1 - sigma  (la pipeline utilise (1000 - t)/1000)
-- la pipeline NÉGE la sortie du transformer avant le scheduler => le modèle prédit
-  nativement (data - noise). Donc cible d'entraînement = x1 - x0.
+- noisy latent = sigma*x0 + (1-sigma)*x1   (sigma=1 -> pure noise, sigma=0 -> data)
+- timestep passed to the model = 1 - sigma  (the pipeline uses (1000 - t)/1000)
+- the pipeline NEGATES the transformer output before the scheduler => the model predicts
+  natively (data - noise). So the training target = x1 - x0.
 """
 import base64
 import gc
@@ -29,7 +29,7 @@ import time
 from captioner import clean_path
 from events import evt
 
-# Helpers génériques réutilisés du trainer SDXL (dataset + bucketing par ratio).
+# Generic helpers reused from the SDXL trainer (dataset + ratio bucketing).
 # Les buckets sont des multiples de 64 -> compatibles Z-Image (exige multiples de 16).
 from real_trainer import _buckets_for_resolution, _list_dataset, _load_bucketed
 
@@ -42,7 +42,7 @@ _LORA_TARGETS = ["to_q", "to_k", "to_v", "to_out.0", "w1", "w2", "w3"]
 
 
 def _find_models_root(dit_path):
-    """Remonte l'arbo depuis le DiT jusqu'à un dossier ComfyUI `models`
+    """Walk up the tree from the DiT to a ComfyUI `models` folder
     (contenant vae/ et text_encoders/)."""
     d = os.path.dirname(os.path.abspath(dit_path))
     for _ in range(6):
@@ -56,8 +56,8 @@ def _find_models_root(dit_path):
 
 
 def _auto_component(root, subdir, preferred, patterns):
-    """Trouve un composant (vae/text_encoder) dans models/<subdir> : nom préféré
-    d'abord, sinon 1er .safetensors matchant un motif (évite gguf/fp8)."""
+    """Find a component (vae/text_encoder) in models/<subdir>: preferred name
+    first, otherwise the 1st .safetensors matching a pattern (avoids gguf/fp8)."""
     import glob as _glob
 
     folder = os.path.join(root, subdir)
@@ -74,10 +74,10 @@ def _auto_component(root, subdir, preferred, patterns):
 
 
 def _build_pipeline_from_files(dit_path, vae_path, te_path, dtype, emit, need_te=True, precision="bf16"):
-    """Assemble ZImagePipeline depuis 3 fichiers ComfyUI séparés : DiT Z-Image,
-    VAE Flux (ae.zimage), text encoder Qwen3-4B. Ne télécharge QUE de petits
+    """Assemble ZImagePipeline from 3 separate ComfyUI files: Z-Image DiT,
+    Flux VAE (ae.zimage), Qwen3-4B text encoder. Downloads ONLY small
     configs/tokenizer (pas les poids lourds, on a tout en local).
-    need_te=False (cache d'embeddings présent) -> on NE CHARGE PAS Qwen (8 Go).
+    need_te=False (embedding cache present) -> we DO NOT LOAD Qwen (8 GB).
     precision int8/nf4 -> quantifie le DiT (moins de VRAM, sur petites cartes)."""
     import safetensors.torch as st
     import torch
@@ -103,7 +103,7 @@ def _build_pipeline_from_files(dit_path, vae_path, te_path, dtype, emit, need_te
         transformer = ZImageTransformer2DModel.from_single_file(dit_path, torch_dtype=dtype)
 
     emit(evt("log", level="info", message=f"VAE (Flux AE): {os.path.basename(vae_path)}"))
-    # ⚠️ sans config explicite, from_single_file instancie un VAE SD 4 channels ->
+    # ⚠️ without an explicit config, from_single_file builds an SD VAE 4 channels ->
     # mismatch (le VAE Z-Image/Flux fait 16 channels). On force la config du repo.
     vae = AutoencoderKL.from_single_file(
         vae_path, config=ZIMAGE_DEFAULT, subfolder="vae", torch_dtype=dtype
@@ -114,8 +114,8 @@ def _build_pipeline_from_files(dit_path, vae_path, te_path, dtype, emit, need_te
         from accelerate import init_empty_weights
 
         te_cfg = AutoConfig.from_pretrained(QWEN_TE_REPO)
-        # init sur meta device (instantané, pas d'alloc fp32 16 Go ni d'init aléatoire) ;
-        # include_buffers=False -> les buffers (rotary inv_freq) restent réels.
+        # init on meta device (instant, no 16 GB fp32 alloc, no random init);
+        # include_buffers=False -> the buffers (rotary inv_freq) stay real.
         with init_empty_weights(include_buffers=False):
             te = AutoModel.from_config(te_cfg)  # Qwen3Model
         sd = st.load_file(te_path)
@@ -129,7 +129,7 @@ def _build_pipeline_from_files(dit_path, vae_path, te_path, dtype, emit, need_te
                      message=f"Qwen load: {len(real_missing)} manquants, {len(unexpected)} inattendus"))
         tokenizer = AutoTokenizer.from_pretrained(QWEN_TE_REPO)
     else:
-        emit(evt("log", level="info", message="Cache d'embeddings présent → Qwen non chargé (gain de temps)"))
+        emit(evt("log", level="info", message="Embedding cache present → Qwen not loaded (time saved)"))
         te = None
         tokenizer = None
 
@@ -142,9 +142,9 @@ def _build_pipeline_from_files(dit_path, vae_path, te_path, dtype, emit, need_te
 
 
 def _load_pipeline(cfg, dtype, emit, need_te=True):
-    """Charge la pipeline Z-Image. Priorité : fichiers ComfyUI locaux (0 download
+    """Load the Z-Image pipeline. Priority: local ComfyUI files (0 download
     lourd) si base_model pointe un DiT .safetensors ; sinon repo diffusers HF.
-    need_te=False -> on saute le chargement du text encoder Qwen (cache présent)."""
+    need_te=False -> skip loading the Qwen text encoder (cache present)."""
     base = clean_path(cfg.base_model) or ZIMAGE_DEFAULT
     is_local = base.lower().endswith((".safetensors", ".ckpt")) and os.path.isfile(base)
     if not is_local:
@@ -157,22 +157,22 @@ def _load_pipeline(cfg, dtype, emit, need_te=True):
             pipe.text_encoder = None
         return pipe
 
-    # Fichiers séparés : localise VAE + text encoder
+    # Separate files: locate VAE + text encoder
     vae_path = clean_path(cfg.zimage_vae)
     te_path = clean_path(cfg.zimage_text_encoder)
     if not vae_path or not te_path:
         root = _find_models_root(base)
         if root is None:
             raise RuntimeError(
-                "DiT local détecté mais impossible de trouver l'arbo ComfyUI models/ "
+                "Local DiT detected but couldn't find the ComfyUI models/ tree "
                 "(vae, text_encoders). Renseigne zimage_vae et zimage_text_encoder."
             )
         vae_path = vae_path or _auto_component(root, "vae", "ae.zimage.safetensors", ["zimage", "ae"])
         te_path = te_path or _auto_component(root, "text_encoders", "qwen_3_4b.safetensors", ["qwen_3", "qwen3"])
     if not vae_path or not os.path.isfile(vae_path):
-        raise RuntimeError(f"VAE Z-Image introuvable (cherché ae.zimage). Donné: {vae_path!r}")
+        raise RuntimeError(f"Z-Image VAE not found (looked for ae.zimage). Given: {vae_path!r}")
     if need_te and (not te_path or not os.path.isfile(te_path)):
-        raise RuntimeError(f"Text encoder Qwen3 introuvable. Donné: {te_path!r}")
+        raise RuntimeError(f"Qwen3 text encoder not found. Given: {te_path!r}")
     return _build_pipeline_from_files(
         base, vae_path, te_path, dtype, emit, need_te=need_te,
         precision=getattr(cfg, "precision", "bf16"),
@@ -180,8 +180,8 @@ def _load_pipeline(cfg, dtype, emit, need_te=True):
 
 
 def _cache_key(data, cfg):
-    """Empreinte du dataset (chemins + mtime + taille + caption) + résolution +
-    token + prompt d'aperçu. Toute modif d'image ou de .txt invalide le cache."""
+    """Fingerprint of the dataset (paths + mtime + size + caption) + resolution +
+    token + preview prompt. Any image or .txt change invalidates the cache."""
     import hashlib
 
     h = hashlib.sha1()
@@ -213,13 +213,13 @@ def _save_cache(cache_file, latents_cache, emb_cache, sample_emb, emit):
     try:
         os.makedirs(os.path.dirname(cache_file), exist_ok=True)
         torch.save({"latents": latents_cache, "embeds": emb_cache, "sample": sample_emb}, cache_file)
-        emit(evt("log", level="info", message="Cache latents+texte enregistré (runs suivants plus rapides)"))
+        emit(evt("log", level="info", message="Latents+text cache saved (later runs are faster)"))
     except Exception as e:
-        emit(evt("log", level="warn", message=f"écriture cache échouée: {e}"))
+        emit(evt("log", level="warn", message=f"cache write failed: {e}"))
 
 
 def _sample_sigma(device):
-    """Logit-normal : concentre l'échantillonnage vers le milieu du trajet (mieux
+    """Logit-normal: concentrates sampling toward the middle of the path (better
     que l'uniforme pour le rectified flow)."""
     import torch
 
@@ -228,8 +228,8 @@ def _sample_sigma(device):
 
 
 def _export_lora(transformer, out_dir, name, emit, meta=None):
-    """Exporte l'adaptateur LoRA au format diffusers (préfixe `transformer.`),
-    chargeable par ZImagePipeline.load_lora_weights et les loaders Z-Image récents."""
+    """Export the LoRA adapter in diffusers format (prefix `transformer.`),
+    loadable by ZImagePipeline.load_lora_weights and recent Z-Image loaders."""
     try:
         import torch
         from peft import get_peft_model_state_dict
@@ -245,10 +245,10 @@ def _export_lora(transformer, out_dir, name, emit, meta=None):
             out[k] = v.detach().to("cpu", torch.float16)
         path = os.path.join(out_dir, name + ".safetensors")
         save_file(out, path, metadata=meta or None)
-        emit(evt("log", level="info", message=f"LoRA Z-Image exporté: {name}.safetensors"))
+        emit(evt("log", level="info", message=f"Z-Image LoRA exported: {name}.safetensors"))
         return path
     except Exception as e:
-        emit(evt("log", level="warn", message=f"export LoRA échoué: {e}"))
+        emit(evt("log", level="warn", message=f"LoRA export failed: {e}"))
         return None
 
 
@@ -271,20 +271,20 @@ def run_zimage_training(cfg, emit, stop_event):
     buckets = _buckets_for_resolution(cfg.resolution)
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])  # -> [-1, 1]
 
-    # Cache persistant : si les latents + embeddings de CE dataset/résolution/token
-    # existent déjà sur disque, on saute l'encodage ET le chargement de Qwen (8 Go).
+    # Persistent cache: if the latents + embeddings of THIS dataset/resolution/token
+    # already exist on disk, we skip encoding AND loading Qwen (8 GB).
     cache_file = os.path.join(cfg.output_dir, ".soma_cache", f"zimage_{_cache_key(data, cfg)}.pt")
     cached = _load_cache(cache_file, emit) if os.path.isfile(cache_file) else None
 
     pipe = _load_pipeline(cfg, dtype, emit, need_te=(cached is None))
 
     if cached is not None:
-        emit(evt("log", level="info", message="Cache trouvé → latents + embeddings réutilisés"))
+        emit(evt("log", level="info", message="Cache found → latents + embeddings reused"))
         latents_cache, emb_cache, sample_emb = cached
         if getattr(pipe, "vae", None) is not None:
-            pipe.vae.to("cpu", dtype=dtype)  # gardé au chaud pour l'aperçu
+            pipe.vae.to("cpu", dtype=dtype)  # kept warm for the preview
     else:
-        # 1) latents VAE (le VAE reste ensuite au chaud sur CPU pour l'aperçu)
+        # 1) VAE latents (the VAE then stays warm on CPU for the preview)
         emit(evt("log", level="info", message="Pre-computing latents VAE…"))
         vae = pipe.vae
         scaling = vae.config.scaling_factor
@@ -298,11 +298,11 @@ def run_zimage_training(cfg, emit, stop_event):
                 raw = vae.encode(px).latent_dist.sample()
                 x1 = (raw - shift) * scaling
                 latents_cache.append((x1.squeeze(0).to("cpu", torch.float32), caption))
-        vae.to("cpu", dtype=dtype)  # libère le GPU, garde le VAE pour l'aperçu
+        vae.to("cpu", dtype=dtype)  # frees the GPU, keeps the VAE for the preview
         gc.collect()
         torch.cuda.empty_cache()
 
-        # 2) embeddings texte (Qwen), puis on DÉCHARGE le text encoder
+        # 2) text embeddings (Qwen), then UNLOAD the text encoder
         emit(evt("log", level="info", message="Pre-computing text embeddings (Qwen)…"))
         pipe.text_encoder.to(device)
         emb_cache = []
@@ -313,7 +313,7 @@ def run_zimage_training(cfg, emit, stop_event):
                     caption or default_cap, device=device, do_classifier_free_guidance=False
                 )
                 emb_cache.append(pe[0].to("cpu", dtype))
-            # embedding du prompt d'aperçu (permet de sampler SANS recharger Qwen)
+            # preview prompt embedding (allows sampling WITHOUT reloading Qwen)
             sample_pe, _ = pipe.encode_prompt(
                 cfg.sample_prompt, device=device, do_classifier_free_guidance=False
             )
@@ -327,14 +327,14 @@ def run_zimage_training(cfg, emit, stop_event):
         _save_cache(cache_file, latents_cache, emb_cache, sample_emb, emit)
 
     # ------------------------------------------------------------------
-    # 3) TRANSFORMER + LoRA sur le GPU (seul modèle résident pendant la boucle)
+    # 3) TRANSFORMER + LoRA on the GPU (only resident model during the loop)
     # ------------------------------------------------------------------
     emit(evt("log", level="info", message="Transformer 6B -> GPU + LoRA…"))
     transformer = pipe.transformer
     from quant import is_quantized
 
     if is_quantized(getattr(cfg, "precision", "bf16")):
-        transformer.to(device)  # déclenche la vraie quantization nf4/int8 sur GPU
+        transformer.to(device)  # triggers the real nf4/int8 quantization on GPU
     else:
         transformer.to(device, dtype=dtype)
     transformer.requires_grad_(False)
@@ -382,7 +382,7 @@ def run_zimage_training(cfg, emit, stop_event):
             pred = transformer(x_list, model_t, [cap_emb], return_dict=False)[0]
             pred = torch.stack(pred, dim=0).squeeze(2)  # [1,16,h,w]
 
-            target = x1 - x0  # le modèle prédit nativement (data - noise)
+            target = x1 - x0  # the model predicts natively (data - noise)
             loss = torch.nn.functional.mse_loss(pred.float(), target.float())
             loss.backward()
             torch.nn.utils.clip_grad_norm_(params, 1.0)
@@ -411,8 +411,8 @@ def run_zimage_training(cfg, emit, stop_event):
 
 
 def _sample(pipe, transformer, sample_emb, cfg, step, emit, device, dtype):
-    """Aperçu Turbo (peu de steps, guidance 0). On remonte le VAE sur le GPU et on
-    passe l'embedding du prompt DÉJÀ calculé -> pas besoin de recharger Qwen."""
+    """Turbo preview (few steps, guidance 0). We move the VAE back to the GPU and
+    pass the ALREADY-computed prompt embedding -> no need to reload Qwen."""
     import torch
 
     emit(evt("status", state="sampling", step=step))
