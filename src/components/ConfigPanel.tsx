@@ -366,6 +366,33 @@ export function ConfigPanel({
             />
           </Field>
         </div>
+        <div className="grid grid-cols-[1fr_auto] gap-3">
+          <Field label={t("cfg.regDir")} hint={t("cfg.regDirHint")}>
+            <Input
+              value={cfg.reg_dataset_dir}
+              placeholder="/root/reg_person"
+              onChange={(e) => set("reg_dataset_dir", e.target.value)}
+            />
+          </Field>
+          <Field label={t("cfg.priorW")}>
+            <Input
+              type="number"
+              step="0.1"
+              className="w-24"
+              value={cfg.prior_loss_weight}
+              onChange={(e) => set("prior_loss_weight", Number(e.target.value))}
+            />
+          </Field>
+        </div>
+        {cfg.reg_dataset_dir.trim() && (
+          <Field label={t("cfg.classPrompt")} hint={t("cfg.classPromptHint")}>
+            <Input
+              value={cfg.class_prompt}
+              placeholder="a photo of a person"
+              onChange={(e) => set("class_prompt", e.target.value)}
+            />
+          </Field>
+        )}
         <Field
           label={t("cfg.samplePrompt")}
           hint={fam?.prompt_hint ? fam.prompt_hint.replace(/<token>/g, cfg.instance_token || "ohwx") : undefined}

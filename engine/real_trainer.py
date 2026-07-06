@@ -189,9 +189,10 @@ def run_real_training(cfg, emit, stop_event, family=None):
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])
     emit(evt("log", level="info", message="Ratio bucketing enabled (no square crop)"))
 
-    def encode_prompt(caption):
+    def encode_prompt(caption, allow_drop=True):
         cap = caption or f"a photo of {cfg.instance_token} person"
-        cap = maybe_drop(cap, cap_drop)  # caption dropout -> unconditional prompt
+        if allow_drop:
+            cap = maybe_drop(cap, cap_drop)  # caption dropout -> unconditional prompt
         ids1 = tok1(cap, padding="max_length", max_length=tok1.model_max_length,
                     truncation=True, return_tensors="pt").input_ids.to(device)
         ids2 = tok2(cap, padding="max_length", max_length=tok2.model_max_length,
@@ -201,6 +202,39 @@ def run_real_training(cfg, emit, stop_event, family=None):
             o2 = te2(ids2, output_hidden_states=True)
         emb = torch.cat([o1.hidden_states[-2], o2.hidden_states[-2]], dim=-1)
         return emb, o2[0]  # (encoder_hidden_states, pooled)
+
+    def sample_loss(path, caption, allow_drop=True):
+        """Weighted denoising loss for one image (no backward). Shared by the instance
+        step and the prior-preservation step."""
+        img, W, H = _load_bucketed(path, buckets)
+        px = norm(img).unsqueeze(0).to(device, dtype=torch.float32)
+        add_time_ids = torch.tensor([[H, W, 0, 0, H, W]], device=device, dtype=dtype)
+        with torch.no_grad():
+            latents = vae.encode(px).latent_dist.sample() * vae.config.scaling_factor
+        latents = latents.to(dtype)
+        noise = torch.randn_like(latents)
+        ts = torch.randint(0, noise_sched.config.num_train_timesteps, (1,), device=device).long()
+        noisy = noise_sched.add_noise(latents, noise, ts)
+        emb, pooled = encode_prompt(caption, allow_drop)
+        added = {"text_embeds": pooled, "time_ids": add_time_ids}
+        pred = unet(noisy, ts, encoder_hidden_states=emb, added_cond_kwargs=added).sample
+        target = noise_sched.get_velocity(latents, noise, ts) if is_vpred else noise  # v-pred | epsilon
+        per = torch.nn.functional.mse_loss(
+            pred.float(), target.float(), reduction="none"
+        ).mean(dim=[1, 2, 3])
+        w = min_snr_weights(noise_sched, ts, snr_gamma, prediction).to(per.device)
+        return (per * w).mean()
+
+    # Prior preservation (DreamBooth-style): if a folder of class/regularization images
+    # is given, every step also denoises a class image so the LoRA keeps the base model's
+    # prior instead of overwriting it. Empty -> off.
+    reg_dir = clean_path(getattr(cfg, "reg_dataset_dir", ""))
+    reg_data = _list_dataset(reg_dir) if reg_dir else []
+    prior_w = float(getattr(cfg, "prior_loss_weight", 1.0))
+    class_prompt = getattr(cfg, "class_prompt", "") or "a photo of a person"
+    if reg_data:
+        emit(evt("log", level="info",
+                 message=f"Prior preservation: {len(reg_data)} reg image(s), weight {prior_w}"))
 
     emit(evt("status", state="training", total_steps=cfg.max_steps))
     unet.train()
@@ -212,30 +246,10 @@ def run_real_training(cfg, emit, stop_event, family=None):
             if stop_event.is_set() or step >= cfg.max_steps:
                 break
             step += 1
-            img, W, H = _load_bucketed(path, buckets)
-            px = norm(img).unsqueeze(0).to(device, dtype=torch.float32)
-            add_time_ids = torch.tensor(
-                [[H, W, 0, 0, H, W]], device=device, dtype=dtype
-            )
-            with torch.no_grad():
-                latents = vae.encode(px).latent_dist.sample() * vae.config.scaling_factor
-            latents = latents.to(dtype)
-            noise = torch.randn_like(latents)
-            ts = torch.randint(
-                0, noise_sched.config.num_train_timesteps, (1,), device=device
-            ).long()
-            noisy = noise_sched.add_noise(latents, noise, ts)
-            emb, pooled = encode_prompt(caption)
-            added = {"text_embeds": pooled, "time_ids": add_time_ids}
-            pred = unet(noisy, ts, encoder_hidden_states=emb,
-                        added_cond_kwargs=added).sample
-            # Target: velocity (v-pred) or noise (epsilon)
-            target = noise_sched.get_velocity(latents, noise, ts) if is_vpred else noise
-            per = torch.nn.functional.mse_loss(
-                pred.float(), target.float(), reduction="none"
-            ).mean(dim=[1, 2, 3])
-            w = min_snr_weights(noise_sched, ts, snr_gamma, prediction).to(per.device)
-            loss = (per * w).mean()
+            loss = sample_loss(path, caption)
+            if reg_data:  # anchor to the class prior
+                rp, rc = random.choice(reg_data)
+                loss = loss + prior_w * sample_loss(rp, rc or class_prompt, allow_drop=False)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(params, 1.0)
             opt.step()

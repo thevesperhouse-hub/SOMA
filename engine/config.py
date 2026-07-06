@@ -31,6 +31,11 @@ class TrainConfig(BaseModel):
     min_snr_gamma: float = 5.0      # min-SNR-gamma loss weighting (epsilon families); <=0 disables
     caption_dropout: float = 0.1    # fraction of steps trained unconditionally
 
+    # Prior preservation (DreamBooth-style, SDXL family). Empty reg dir => off.
+    reg_dataset_dir: str = ""       # folder of class/regularization images
+    prior_loss_weight: float = 1.0  # weight of the class (prior) loss term
+    class_prompt: str = ""          # generic caption for reg images (default: "a photo of a person")
+
     # Memory / perf (designed for 16 GB)
     gradient_checkpointing: bool = True
     mixed_precision: str = "bf16"  # bf16 | fp16 | fp32 (compute)
