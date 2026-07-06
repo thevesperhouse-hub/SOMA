@@ -138,7 +138,7 @@ def run_lumina2_training(cfg, emit, stop_event, family=None):
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
-        raise RuntimeError(f"Aucune image dans {dataset_dir!r}")
+        raise RuntimeError(f"No images in {dataset_dir!r}")
     emit(evt("log", level="info", message=f"{len(data)} image(s) — Lumina2 QLoRA ({precision})"))
 
     res = int(cfg.resolution)
@@ -148,8 +148,8 @@ def run_lumina2_training(cfg, emit, stop_event, family=None):
     cache_dir = os.path.join(cfg.output_dir, ".soma_cache")
     vae_path = _find_vae(dit_path, cfg)
 
-    # ---------------- 1) cache latents (Flux AE, 4D non packé) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des latents (VAE)…"))
+    # ---------------- 1) cache latents (Flux AE, 4D unpacked) ----------------
+    emit(evt("log", level="info", message="Pre-computing latents (VAE)…"))
     vae = _load_vae(vae_path, torch.float32, emit).to(device)
     scaling = vae.config.scaling_factor
     shift = getattr(vae.config, "shift_factor", 0.0) or 0.0
@@ -164,7 +164,7 @@ def run_lumina2_training(cfg, emit, stop_event, family=None):
     gc.collect(); torch.cuda.empty_cache()
 
     # ---------------- 2) cache embeddings texte (Gemma-2) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des embeddings texte (Gemma-2)…"))
+    emit(evt("log", level="info", message="Pre-computing text embeddings (Gemma-2)…"))
     te, tok = _load_gemma(precision, emit)
     default_cap = f"a portrait photo of {cfg.instance_token} person"
     emb_cache = []
@@ -215,7 +215,7 @@ def run_lumina2_training(cfg, emit, stop_event, family=None):
                 encoder_hidden_states=emb, encoder_attention_mask=mask,
                 return_dict=False,
             )[0]
-            target = x1 - x0  # Lumina/Z-Image : cible = data - noise
+            target = x1 - x0  # Lumina/Z-Image : target = data - noise
             loss = torch.nn.functional.mse_loss(pred.float(), target.float())
             loss.backward()
             torch.nn.utils.clip_grad_norm_(params, 1.0)

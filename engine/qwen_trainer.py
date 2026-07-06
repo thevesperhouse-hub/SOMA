@@ -210,7 +210,7 @@ def run_qwen_training(cfg, emit, stop_event, family=None):
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
-        raise RuntimeError(f"Aucune image dans {dataset_dir!r}")
+        raise RuntimeError(f"No images in {dataset_dir!r}")
     emit(evt("log", level="info", message=f"{len(data)} image(s) — Qwen-Image QLoRA ({precision})"))
 
     vae_path = _find_qwen_components(dit_path, cfg)
@@ -222,7 +222,7 @@ def run_qwen_training(cfg, emit, stop_event, family=None):
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])  # -> [-1,1]
 
     # ---------------- 1) cache latents (VAE) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des latents (VAE Qwen)…"))
+    emit(evt("log", level="info", message="Pre-computing latents (VAE Qwen)…"))
     vae = _load_vae(vae_path, torch.float32, emit).to(device)
     vsf = 2 ** len(vae.temperal_downsample)  # 8
     if res % (vsf * 2) != 0:
@@ -247,7 +247,7 @@ def run_qwen_training(cfg, emit, stop_event, family=None):
     gc.collect(); torch.cuda.empty_cache()
 
     # ---------------- 2) cache embeddings texte (Qwen2.5-VL) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des embeddings texte (Qwen2.5-VL)…"))
+    emit(evt("log", level="info", message="Pre-computing text embeddings (Qwen2.5-VL)…"))
     te, tok = _load_text_encoder(precision, emit)
     default_cap = f"a photo of {cfg.instance_token}"
     emb_cache = []

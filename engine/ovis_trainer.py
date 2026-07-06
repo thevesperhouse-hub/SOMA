@@ -49,8 +49,8 @@ def run_ovis_training(cfg, emit, stop_event, family=None):
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
-        raise RuntimeError(f"Aucune image dans {dataset_dir!r}")
-    emit(evt("log", level="info", message=f"{len(data)} image(s) — Ovis-Image QLoRA ({precision}) depuis {src}"))
+        raise RuntimeError(f"No images in {dataset_dir!r}")
+    emit(evt("log", level="info", message=f"{len(data)} image(s) — Ovis-Image QLoRA ({precision}) from {src}"))
 
     res = int(cfg.resolution)
     if res % 16 != 0:
@@ -59,7 +59,7 @@ def run_ovis_training(cfg, emit, stop_event, family=None):
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])
 
     # ---------------- 1) cache latents (VAE KL 16ch, packé 64) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des latents (VAE)…"))
+    emit(evt("log", level="info", message="Pre-computing latents (VAE)…"))
     vae = AutoencoderKL.from_pretrained(src, subfolder="vae", torch_dtype=torch.float32).to(device)
     scaling = vae.config.scaling_factor
     shift = getattr(vae.config, "shift_factor", 0.0) or 0.0
@@ -76,7 +76,7 @@ def run_ovis_training(cfg, emit, stop_event, family=None):
     gc.collect(); torch.cuda.empty_cache()
 
     # ---------------- 2) cache embeddings texte (Qwen3, chat template) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des embeddings texte (Qwen3)…"))
+    emit(evt("log", level="info", message="Pre-computing text embeddings (Qwen3)…"))
     tok = AutoTokenizer.from_pretrained(src, subfolder="tokenizer")
     bnb_te = bnb_config(precision if precision != "bf16" else "nf4")
     tekw = dict(subfolder="text_encoder", torch_dtype=dtype)
@@ -111,7 +111,7 @@ def run_ovis_training(cfg, emit, stop_event, family=None):
     tkw = dict(subfolder="transformer", torch_dtype=dtype)
     if bnb is not None:
         tkw["quantization_config"] = bnb
-        tkw["device_map"] = {"": 0}  # quant nf4 sur GPU
+        tkw["device_map"] = {"": 0}  # nf4 quant on GPU
     transformer = OvisImageTransformer2DModel.from_pretrained(src, **tkw)
     if bnb is None:
         transformer = transformer.to(device)

@@ -6,7 +6,7 @@ en **repo diffusers** (pas un single-file ComfyUI) → on charge les composants 
 from_pretrained(subfolder). base_model = repo HF (défaut Photoroom/prxpixel-t2i) ou dossier
 diffusers local.
 
-API vérifiée (pipeline_prx.py / transformer_prx.py) : latents **4D non packés** [B,16,H,W]
+API vérifiée (pipeline_prx.py / transformer_prx.py) : latents **4D unpackeds** [B,16,H,W]
 (patchify interne, patch_size 2) ; texte = `text_encoder(ids, mask, output_hidden_states)
 ["last_hidden_state"]` + mask ; flow STANDARD (pas de négation) → timestep = **sigma**,
 CIBLE = **x0 - x1** ; forward = transformer(hidden_states, timestep=sigma,
@@ -65,8 +65,8 @@ def run_prx_training(cfg, emit, stop_event, family=None):
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
-        raise RuntimeError(f"Aucune image dans {dataset_dir!r}")
-    emit(evt("log", level="info", message=f"{len(data)} image(s) — PRX QLoRA ({precision}) depuis {src}"))
+        raise RuntimeError(f"No images in {dataset_dir!r}")
+    emit(evt("log", level="info", message=f"{len(data)} image(s) — PRX QLoRA ({precision}) from {src}"))
 
     res = int(cfg.resolution)
     if res % 16 != 0:
@@ -74,7 +74,7 @@ def run_prx_training(cfg, emit, stop_event, family=None):
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])
 
     # ---------------- 1) cache latents (VAE) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des latents (VAE)…"))
+    emit(evt("log", level="info", message="Pre-computing latents (VAE)…"))
     vae = AutoencoderKL.from_pretrained(src, subfolder="vae", torch_dtype=torch.float32).to(device)
     scaling = vae.config.scaling_factor
     shift = getattr(vae.config, "shift_factor", 0.0) or 0.0
@@ -83,13 +83,13 @@ def run_prx_training(cfg, emit, stop_event, family=None):
         for path, caption in data:
             px = norm(_load_square(path, res)).unsqueeze(0).to(device, torch.float32)
             raw = vae.encode(px).latent_dist.sample()
-            x1 = (raw - shift) * scaling  # [1,16,h,w] non packé
+            x1 = (raw - shift) * scaling  # [1,16,h,w] unpacked
             latents_cache.append((x1.squeeze(0).to("cpu", dtype), caption))
     del vae
     gc.collect(); torch.cuda.empty_cache()
 
     # ---------------- 2) cache embeddings texte (T5Gemma) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des embeddings texte (T5Gemma)…"))
+    emit(evt("log", level="info", message="Pre-computing text embeddings (T5Gemma)…"))
     tok = AutoTokenizer.from_pretrained(src, subfolder="tokenizer")
     te = T5GemmaEncoder.from_pretrained(src, subfolder="text_encoder", torch_dtype=dtype).to(device).eval()
     default_cap = f"a photo of {cfg.instance_token} person"
@@ -146,7 +146,7 @@ def run_prx_training(cfg, emit, stop_event, family=None):
                 encoder_hidden_states=emb, attention_mask=mask,
                 return_dict=False,
             )[0]
-            target = x0 - x1  # flow standard : cible = noise - data
+            target = x0 - x1  # standard flow: target = noise - data
             loss = torch.nn.functional.mse_loss(pred.float(), target.float())
             loss.backward()
             torch.nn.utils.clip_grad_norm_(params, 1.0)

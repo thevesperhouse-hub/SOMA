@@ -2,7 +2,7 @@
 
 HunyuanImage = DiT flow-matching (~17B), texte principal **Qwen2.5-VL** (+ ByT5 pour le
 rendu de texte entre guillemets — IGNORÉ ici, inutile pour une LoRA d'identité), VAE
-**AutoencoderKLHunyuanImage** (compression 32×, 64 canaux latents, latents 4D non packés,
+**AutoencoderKLHunyuanImage** (compression 32×, 64 canaux latents, latents 4D unpackeds,
 in=64). Repo diffusers → from_pretrained(subfolder). base_model défaut tencent/HunyuanImage-2.1.
 
 Vérifié (pipeline_hunyuanimage.py / transformer_hunyuanimage.py) : Qwen2.5-VL avec gabarit
@@ -56,8 +56,8 @@ def run_hunyuan_training(cfg, emit, stop_event, family=None):
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
-        raise RuntimeError(f"Aucune image dans {dataset_dir!r}")
-    emit(evt("log", level="info", message=f"{len(data)} image(s) — HunyuanImage QLoRA ({precision}) depuis {src}"))
+        raise RuntimeError(f"No images in {dataset_dir!r}")
+    emit(evt("log", level="info", message=f"{len(data)} image(s) — HunyuanImage QLoRA ({precision}) from {src}"))
 
     res = int(cfg.resolution)
     if res % 64 != 0:
@@ -65,7 +65,7 @@ def run_hunyuan_training(cfg, emit, stop_event, family=None):
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])
 
     # ---------------- 1) cache latents (VAE Hunyuan 64ch) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des latents (VAE Hunyuan)…"))
+    emit(evt("log", level="info", message="Pre-computing latents (VAE Hunyuan)…"))
     vae = AutoencoderKLHunyuanImage.from_pretrained(src, subfolder="vae", torch_dtype=torch.float32).to(device)
     scaling = getattr(vae.config, "scaling_factor", None) or 1.0
     shift = getattr(vae.config, "shift_factor", 0.0) or 0.0
@@ -82,7 +82,7 @@ def run_hunyuan_training(cfg, emit, stop_event, family=None):
     gc.collect(); torch.cuda.empty_cache()
 
     # ---------------- 2) cache embeddings texte (Qwen2.5-VL) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des embeddings texte (Qwen2.5-VL)…"))
+    emit(evt("log", level="info", message="Pre-computing text embeddings (Qwen2.5-VL)…"))
     tok = AutoTokenizer.from_pretrained(src, subfolder="tokenizer")
     bnb_te = bnb_config(precision if precision != "bf16" else "nf4")
     tekw = dict(subfolder="text_encoder", torch_dtype=dtype)
@@ -114,7 +114,7 @@ def run_hunyuan_training(cfg, emit, stop_event, family=None):
     tkw = dict(subfolder="transformer", torch_dtype=dtype)
     if bnb is not None:
         tkw["quantization_config"] = bnb
-        tkw["device_map"] = {"": 0}  # quant nf4 sur GPU
+        tkw["device_map"] = {"": 0}  # nf4 quant on GPU
     transformer = HunyuanImageTransformer2DModel.from_pretrained(src, **tkw)
     if bnb is None:
         transformer = transformer.to(device)

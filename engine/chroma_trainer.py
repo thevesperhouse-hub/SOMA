@@ -110,7 +110,7 @@ def run_chroma_training(cfg, emit, stop_event, family=None):
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
-        raise RuntimeError(f"Aucune image dans {dataset_dir!r}")
+        raise RuntimeError(f"No images in {dataset_dir!r}")
     emit(evt("log", level="info", message=f"{len(data)} image(s) — Chroma QLoRA ({precision})"))
 
     res = int(cfg.resolution)
@@ -124,7 +124,7 @@ def run_chroma_training(cfg, emit, stop_event, family=None):
     vae_path, t5_path, _clip = _find_flux_components(dit_path, cfg)
 
     # ---------------- 1) cache latents (VAE Flux AE) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des latents (VAE)…"))
+    emit(evt("log", level="info", message="Pre-computing latents (VAE)…"))
     vae = _load_vae(vae_path, torch.float32, emit).to(device)
     scaling = vae.config.scaling_factor
     shift = getattr(vae.config, "shift_factor", 0.0) or 0.0
@@ -141,7 +141,7 @@ def run_chroma_training(cfg, emit, stop_event, family=None):
     gc.collect(); torch.cuda.empty_cache()
 
     # ---------------- 2) cache embeddings texte (T5 + mask) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des embeddings texte (T5)…"))
+    emit(evt("log", level="info", message="Pre-computing text embeddings (T5)…"))
     t5, t5_tok = _load_t5(t5_path, dtype, emit)
     t5.to(device)
     default_cap = f"a photo of {cfg.instance_token} person"

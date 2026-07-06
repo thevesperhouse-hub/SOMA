@@ -4,7 +4,7 @@ AuraFlow = MMDiT flow-matching, texte **UMT5** (pile-t5), VAE AutoencoderKL 4 ca
 Distribué en repo diffusers → from_pretrained(subfolder). base_model défaut fal/AuraFlow-v0.3.
 
 Vérifié (pipeline_aura_flow.py) : prompt_embeds = `text_encoder(ids, mask)[0] * mask`
-(padding mis à zéro, PAS de mask passé au transformer) ; latents 4D non packés (in=4,
+(padding mis à zéro, PAS de mask passé au transformer) ; latents 4D unpackeds (in=4,
 patch 2) ; flow STANDARD → timestep = sigma, CIBLE = x0 - x1 ; forward =
 transformer(hidden_states[B,4,H,W], encoder_hidden_states, timestep).
 """
@@ -45,8 +45,8 @@ def run_auraflow_training(cfg, emit, stop_event, family=None):
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
-        raise RuntimeError(f"Aucune image dans {dataset_dir!r}")
-    emit(evt("log", level="info", message=f"{len(data)} image(s) — AuraFlow QLoRA ({precision}) depuis {src}"))
+        raise RuntimeError(f"No images in {dataset_dir!r}")
+    emit(evt("log", level="info", message=f"{len(data)} image(s) — AuraFlow QLoRA ({precision}) from {src}"))
 
     res = int(cfg.resolution)
     if res % 8 != 0:
@@ -54,7 +54,7 @@ def run_auraflow_training(cfg, emit, stop_event, family=None):
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])
 
     # ---------------- 1) cache latents (VAE KL 4ch) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des latents (VAE)…"))
+    emit(evt("log", level="info", message="Pre-computing latents (VAE)…"))
     vae = AutoencoderKL.from_pretrained(src, subfolder="vae", torch_dtype=torch.float32).to(device)
     scaling = vae.config.scaling_factor
     shift = getattr(vae.config, "shift_factor", 0.0) or 0.0
@@ -68,7 +68,7 @@ def run_auraflow_training(cfg, emit, stop_event, family=None):
     gc.collect(); torch.cuda.empty_cache()
 
     # ---------------- 2) cache embeddings texte (UMT5, mask baked-in) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des embeddings texte (UMT5)…"))
+    emit(evt("log", level="info", message="Pre-computing text embeddings (UMT5)…"))
     tok = T5Tokenizer.from_pretrained(src, subfolder="tokenizer")
     te = UMT5EncoderModel.from_pretrained(src, subfolder="text_encoder", torch_dtype=dtype).to(device).eval()
     default_cap = f"a photo of {cfg.instance_token} person"
@@ -79,7 +79,7 @@ def run_auraflow_training(cfg, emit, stop_event, family=None):
                        truncation=True, return_tensors="pt").to(device)
             emb = te(**toks)[0]
             m = toks["attention_mask"].unsqueeze(-1).expand(emb.shape)
-            emb = emb * m  # padding -> 0 (AuraFlow n'envoie pas de mask au transformer)
+            emb = emb * m  # padding -> 0 (AuraFlow does not pass a mask to the transformer)
             emb_cache.append(emb.to("cpu", dtype))
     del te
     gc.collect(); torch.cuda.empty_cache()

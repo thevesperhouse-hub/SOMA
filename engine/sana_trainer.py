@@ -46,8 +46,8 @@ def run_sana_training(cfg, emit, stop_event, family=None):
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
-        raise RuntimeError(f"Aucune image dans {dataset_dir!r}")
-    emit(evt("log", level="info", message=f"{len(data)} image(s) — Sana QLoRA ({precision}) depuis {src}"))
+        raise RuntimeError(f"No images in {dataset_dir!r}")
+    emit(evt("log", level="info", message=f"{len(data)} image(s) — Sana QLoRA ({precision}) from {src}"))
 
     res = int(cfg.resolution)
     if res % 32 != 0:
@@ -55,7 +55,7 @@ def run_sana_training(cfg, emit, stop_event, family=None):
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])
 
     # ---------------- 1) cache latents (VAE DC-AE) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des latents (VAE DC-AE)…"))
+    emit(evt("log", level="info", message="Pre-computing latents (VAE DC-AE)…"))
     vae = AutoencoderDC.from_pretrained(src, subfolder="vae", torch_dtype=torch.float32).to(device)
     scaling = vae.config.scaling_factor
     latents_cache = []
@@ -70,7 +70,7 @@ def run_sana_training(cfg, emit, stop_event, family=None):
     gc.collect(); torch.cuda.empty_cache()
 
     # ---------------- 2) cache embeddings texte (Gemma-2) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des embeddings texte (Gemma-2)…"))
+    emit(evt("log", level="info", message="Pre-computing text embeddings (Gemma-2)…"))
     tok = AutoTokenizer.from_pretrained(src, subfolder="tokenizer")
     te = AutoModel.from_pretrained(src, subfolder="text_encoder", torch_dtype=dtype).to(device).eval()
     default_cap = f"a photo of {cfg.instance_token} person"
@@ -90,7 +90,7 @@ def run_sana_training(cfg, emit, stop_event, family=None):
     tkw = dict(subfolder="transformer", torch_dtype=dtype)
     if bnb is not None:
         tkw["quantization_config"] = bnb
-        tkw["device_map"] = {"": 0}  # quant nf4 sur GPU
+        tkw["device_map"] = {"": 0}  # nf4 quant on GPU
     transformer = SanaTransformer2DModel.from_pretrained(src, **tkw)
     if bnb is None:
         transformer = transformer.to(device)
@@ -136,7 +136,7 @@ def run_sana_training(cfg, emit, stop_event, family=None):
             )[0]
             if pred.shape[1] == 2 * x1.shape[1]:  # learned sigma éventuel
                 pred = pred[:, : x1.shape[1]]
-            target = x0 - x1  # flow standard : cible = noise - data
+            target = x0 - x1  # standard flow: target = noise - data
             loss = torch.nn.functional.mse_loss(pred.float(), target.float())
             loss.backward()
             torch.nn.utils.clip_grad_norm_(params, 1.0)

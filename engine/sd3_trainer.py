@@ -54,8 +54,8 @@ def run_sd3_training(cfg, emit, stop_event, family=None):
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
-        raise RuntimeError(f"Aucune image dans {dataset_dir!r}")
-    emit(evt("log", level="info", message=f"{len(data)} image(s) — SD3.5 QLoRA ({precision}) depuis {src}"))
+        raise RuntimeError(f"No images in {dataset_dir!r}")
+    emit(evt("log", level="info", message=f"{len(data)} image(s) — SD3.5 QLoRA ({precision}) from {src}"))
 
     res = int(cfg.resolution)
     if res % 16 != 0:
@@ -63,7 +63,7 @@ def run_sd3_training(cfg, emit, stop_event, family=None):
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])
 
     # ---------------- 1) cache latents (VAE) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des latents (VAE)…"))
+    emit(evt("log", level="info", message="Pre-computing latents (VAE)…"))
     vae = AutoencoderKL.from_pretrained(src, subfolder="vae", torch_dtype=torch.float32).to(device)
     scaling = vae.config.scaling_factor
     shift = getattr(vae.config, "shift_factor", 0.0) or 0.0
@@ -78,7 +78,7 @@ def run_sd3_training(cfg, emit, stop_event, family=None):
     gc.collect(); torch.cuda.empty_cache()
 
     # ---------------- 2) cache embeddings texte (CLIP-L + CLIP-G + T5) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des embeddings texte (CLIP-L + CLIP-G + T5)…"))
+    emit(evt("log", level="info", message="Pre-computing text embeddings (CLIP-L + CLIP-G + T5)…"))
     tok1 = CLIPTokenizer.from_pretrained(src, subfolder="tokenizer")
     tok2 = CLIPTokenizer.from_pretrained(src, subfolder="tokenizer_2")
     tok3 = T5TokenizerFast.from_pretrained(src, subfolder="tokenizer_3")
@@ -111,7 +111,7 @@ def run_sd3_training(cfg, emit, stop_event, family=None):
     tkw = dict(subfolder="transformer", torch_dtype=dtype)
     if bnb is not None:
         tkw["quantization_config"] = bnb
-        tkw["device_map"] = {"": 0}  # quant nf4 sur GPU
+        tkw["device_map"] = {"": 0}  # nf4 quant on GPU
     transformer = SD3Transformer2DModel.from_pretrained(src, **tkw)
     if bnb is None:
         transformer = transformer.to(device)
@@ -155,7 +155,7 @@ def run_sd3_training(cfg, emit, stop_event, family=None):
                 encoder_hidden_states=emb, pooled_projections=pooled,
                 return_dict=False,
             )[0]
-            target = x0 - x1  # flow standard : cible = noise - data
+            target = x0 - x1  # standard flow: target = noise - data
             loss = torch.nn.functional.mse_loss(pred.float(), target.float())
             loss.backward()
             torch.nn.utils.clip_grad_norm_(params, 1.0)

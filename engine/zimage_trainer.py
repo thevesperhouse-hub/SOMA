@@ -285,7 +285,7 @@ def run_zimage_training(cfg, emit, stop_event):
             pipe.vae.to("cpu", dtype=dtype)  # gardé au chaud pour l'aperçu
     else:
         # 1) latents VAE (le VAE reste ensuite au chaud sur CPU pour l'aperçu)
-        emit(evt("log", level="info", message="Pré-calcul des latents VAE…"))
+        emit(evt("log", level="info", message="Pre-computing latents VAE…"))
         vae = pipe.vae
         scaling = vae.config.scaling_factor
         shift = getattr(vae.config, "shift_factor", 0.0) or 0.0
@@ -303,7 +303,7 @@ def run_zimage_training(cfg, emit, stop_event):
         torch.cuda.empty_cache()
 
         # 2) embeddings texte (Qwen), puis on DÉCHARGE le text encoder
-        emit(evt("log", level="info", message="Pré-calcul des embeddings texte (Qwen)…"))
+        emit(evt("log", level="info", message="Pre-computing text embeddings (Qwen)…"))
         pipe.text_encoder.to(device)
         emb_cache = []
         default_cap = f"a photo of {cfg.instance_token} person"

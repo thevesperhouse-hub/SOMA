@@ -1,13 +1,13 @@
-"""Vrai entraînement LoRA PixArt-Sigma — diffusers + peft.
+"""Real PixArt-Sigma LoRA training — diffusers + peft.
 
-PixArt-Sigma = DiT **epsilon** (bruit, PAS flow), texte **T5-XXL** seul, VAE AutoencoderKL
-4 canaux (VAE SD). Micro-conditionnement désactivé (Sigma) → added_cond_kwargs neutres.
-learned-sigma : le modèle sort 2× les canaux (bruit+variance) → on garde la moitié bruit.
-Distribué en repo diffusers → from_pretrained. base_model défaut PixArt-alpha/PixArt-Sigma-XL-2-1024-MS.
+PixArt-Sigma = **epsilon** DiT (noise, NOT flow), **T5-XXL** text only, AutoencoderKL VAE
+4 channels (SD VAE). Micro-conditioning disabled (Sigma) → neutral added_cond_kwargs.
+learned-sigma: the model outputs 2× the channels (noise+variance) → keep the noise half.
+Distributed as a diffusers repo → from_pretrained. base_model default PixArt-alpha/PixArt-Sigma-XL-2-1024-MS.
 
 forward = transformer(hidden_states[B,4,H,W], encoder_hidden_states=T5[B,seq,4096],
-encoder_attention_mask, timestep=ts_discret, added_cond_kwargs). Entraînement type DDPM :
-ts ~ U[0,1000], noisy = add_noise, CIBLE = bruit (epsilon).
+encoder_attention_mask, timestep=ts_discrete, added_cond_kwargs). DDPM-style training:
+ts ~ U[0,1000], noisy = add_noise, TARGET = noise (epsilon).
 """
 import gc
 import os
@@ -46,8 +46,8 @@ def run_pixart_training(cfg, emit, stop_event, family=None):
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
-        raise RuntimeError(f"Aucune image dans {dataset_dir!r}")
-    emit(evt("log", level="info", message=f"{len(data)} image(s) — PixArt-Σ LoRA ({precision}) depuis {src}"))
+        raise RuntimeError(f"No images in {dataset_dir!r}")
+    emit(evt("log", level="info", message=f"{len(data)} image(s) — PixArt-Σ LoRA ({precision}) from {src}"))
 
     res = int(cfg.resolution)
     if res % 8 != 0:
@@ -56,7 +56,7 @@ def run_pixart_training(cfg, emit, stop_event, family=None):
     noise_sched = DDPMScheduler.from_pretrained(src, subfolder="scheduler")
 
     # ---------------- 1) cache latents (VAE KL 4ch) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des latents (VAE)…"))
+    emit(evt("log", level="info", message="Pre-computing latents (VAE)…"))
     vae = AutoencoderKL.from_pretrained(src, subfolder="vae", torch_dtype=torch.float32).to(device)
     scaling = vae.config.scaling_factor
     latents_cache = []
@@ -69,7 +69,7 @@ def run_pixart_training(cfg, emit, stop_event, family=None):
     gc.collect(); torch.cuda.empty_cache()
 
     # ---------------- 2) cache embeddings texte (T5) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des embeddings texte (T5)…"))
+    emit(evt("log", level="info", message="Pre-computing text embeddings (T5)…"))
     tok = T5Tokenizer.from_pretrained(src, subfolder="tokenizer")
     te = T5EncoderModel.from_pretrained(src, subfolder="text_encoder", torch_dtype=dtype).to(device).eval()
     default_cap = f"a photo of {cfg.instance_token} person"
@@ -89,7 +89,7 @@ def run_pixart_training(cfg, emit, stop_event, family=None):
     tkw = dict(subfolder="transformer", torch_dtype=dtype)
     if bnb is not None:
         tkw["quantization_config"] = bnb
-        tkw["device_map"] = {"": 0}  # quant nf4 sur GPU
+        tkw["device_map"] = {"": 0}  # nf4 quant on GPU
     transformer = PixArtTransformer2DModel.from_pretrained(src, **tkw)
     if bnb is None:
         transformer = transformer.to(device)
@@ -109,7 +109,7 @@ def run_pixart_training(cfg, emit, stop_event, family=None):
     except Exception:
         opt = torch.optim.AdamW(params, lr=cfg.learning_rate)
 
-    added = {"resolution": None, "aspect_ratio": None}  # Sigma : micro-cond désactivé
+    added = {"resolution": None, "aspect_ratio": None}  # Sigma: micro-cond disabled
     emit(evt("status", state="training", total_steps=cfg.max_steps))
     transformer.train()
     t0 = time.time()
@@ -134,7 +134,7 @@ def run_pixart_training(cfg, emit, stop_event, family=None):
                 encoder_attention_mask=mask, timestep=ts, added_cond_kwargs=added,
                 return_dict=False,
             )[0]
-            if pred.shape[1] == 2 * latent_ch:  # learned sigma -> garder la partie bruit
+            if pred.shape[1] == 2 * latent_ch:  # learned sigma -> keep the noise half
                 pred = pred[:, :latent_ch]
             loss = torch.nn.functional.mse_loss(pred.float(), noise.float())  # epsilon
             loss.backward()

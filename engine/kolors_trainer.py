@@ -39,21 +39,21 @@ def run_kolors_training(cfg, emit, stop_event, family=None):
     from families import soma_meta
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    dtype = torch.float16  # ChatGLM3-6B natif fp16
+    dtype = torch.float16  # ChatGLM3-6B native fp16
     src = _resolve(cfg.base_model)
 
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
-        raise RuntimeError(f"Aucune image dans {dataset_dir!r}")
-    emit(evt("log", level="info", message=f"{len(data)} image(s) — Kolors LoRA depuis {src}"))
+        raise RuntimeError(f"No images in {dataset_dir!r}")
+    emit(evt("log", level="info", message=f"{len(data)} image(s) — Kolors LoRA from {src}"))
 
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])
     buckets = _buckets_for_resolution(cfg.resolution)
     noise_sched = DDPMScheduler.from_pretrained(src, subfolder="scheduler")
 
     # ---------------- 1) cache latents (VAE SDXL 4ch) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des latents (VAE)…"))
+    emit(evt("log", level="info", message="Pre-computing latents (VAE)…"))
     vae = AutoencoderKL.from_pretrained(src, subfolder="vae", torch_dtype=torch.float32).to(device)
     scaling = vae.config.scaling_factor
     latents_cache = []
@@ -67,7 +67,7 @@ def run_kolors_training(cfg, emit, stop_event, family=None):
     import gc; gc.collect(); torch.cuda.empty_cache()
 
     # ---------------- 2) cache embeddings texte (ChatGLM) ----------------
-    emit(evt("log", level="info", message="Pré-calcul des embeddings texte (ChatGLM3-6B)…"))
+    emit(evt("log", level="info", message="Pre-computing text embeddings (ChatGLM3-6B)…"))
     tok = ChatGLMTokenizer.from_pretrained(src, subfolder="tokenizer")
     te = ChatGLMModel.from_pretrained(src, subfolder="text_encoder", torch_dtype=dtype).to(device).eval()
     default_cap = f"a photo of {cfg.instance_token} person"
@@ -85,7 +85,7 @@ def run_kolors_training(cfg, emit, stop_event, family=None):
     gc.collect(); torch.cuda.empty_cache()
 
     # ---------------- 3) UNet SDXL + LoRA ----------------
-    emit(evt("log", level="info", message="Chargement UNet Kolors…"))
+    emit(evt("log", level="info", message="Loading Kolors UNet…"))
     unet = UNet2DConditionModel.from_pretrained(src, subfolder="unet", torch_dtype=dtype).to(device)
     unet.requires_grad_(False)
     lora = LoraConfig(r=cfg.rank, lora_alpha=cfg.alpha, init_lora_weights="gaussian",

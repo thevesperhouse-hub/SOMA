@@ -111,7 +111,7 @@ def run_captioning(cfg, emit, stop_event):
     dataset_dir = clean_path(cfg.dataset_dir)
     images = _list_images(dataset_dir)
     if not images:
-        raise RuntimeError(f"Aucune image dans {dataset_dir!r}")
+        raise RuntimeError(f"No images in {dataset_dir!r}")
     emit(evt("log", level="info", message=f"{len(images)} image(s) à captionner"))
 
     model_id = cfg.model_id or JOYCAPTION
