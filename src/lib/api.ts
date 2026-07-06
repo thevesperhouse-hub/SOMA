@@ -20,8 +20,32 @@ function computeBase(): string {
 const BASE = computeBase();
 const WS = BASE.replace(/^http/, "ws") + "/ws";
 
+// Optional access token (cloud public-port mode). Read from the URL (?token=…) on first
+// load then persisted, and sent on every request — lets users skip the SSH tunnel.
+const TOKEN = (() => {
+  try {
+    const u = new URLSearchParams(window.location.search).get("token");
+    if (u) localStorage.setItem("soma.token", u);
+    return u || localStorage.getItem("soma.token") || "";
+  } catch {
+    return "";
+  }
+})();
+
+// Append the token to a URL (for <img> / WebSocket which can't send a header).
+function tok(url: string): string {
+  if (!TOKEN) return url;
+  return url + (url.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(TOKEN);
+}
+
+// fetch wrapper that adds the token header when set.
+function afetch(url: string, init?: RequestInit): Promise<Response> {
+  if (!TOKEN) return fetch(url, init);
+  return fetch(url, { ...init, headers: { ...(init?.headers || {}), "X-Soma-Token": TOKEN } });
+}
+
 export async function startCaptioning(cfg: CaptionConfig): Promise<{ ok: boolean; error?: string }> {
-  const r = await fetch(`${BASE}/api/caption/start`, {
+  const r = await afetch(`${BASE}/api/caption/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(cfg),
@@ -30,12 +54,12 @@ export async function startCaptioning(cfg: CaptionConfig): Promise<{ ok: boolean
 }
 
 export async function stopCaptioning(): Promise<void> {
-  await fetch(`${BASE}/api/caption/stop`, { method: "POST" });
+  await afetch(`${BASE}/api/caption/stop`, { method: "POST" });
 }
 
 export async function captionModelStatus(): Promise<{ model_id: string; cached: boolean }> {
   try {
-    const r = await fetch(`${BASE}/api/caption/model_status`);
+    const r = await afetch(`${BASE}/api/caption/model_status`);
     return await r.json();
   } catch {
     return { model_id: "", cached: false };
@@ -63,7 +87,7 @@ export interface Family {
 
 export async function listFamilies(): Promise<Family[]> {
   try {
-    const r = await fetch(`${BASE}/api/families`);
+    const r = await afetch(`${BASE}/api/families`);
     return (await r.json()).families ?? [];
   } catch {
     return [];
@@ -78,7 +102,7 @@ export interface GpuInfo {
 
 export async function gpuInfo(): Promise<GpuInfo> {
   try {
-    const r = await fetch(`${BASE}/api/gpu`);
+    const r = await afetch(`${BASE}/api/gpu`);
     return await r.json();
   } catch {
     return { cuda: false, name: "", vram_gb: 0 };
@@ -94,7 +118,7 @@ export interface GpuStats {
 
 export async function gpuStats(): Promise<GpuStats> {
   try {
-    const r = await fetch(`${BASE}/api/gpu/stats`);
+    const r = await afetch(`${BASE}/api/gpu/stats`);
     return await r.json();
   } catch {
     return { ok: false };
@@ -115,7 +139,7 @@ export interface Checkpoint {
 
 export async function listCheckpoints(dir = "output"): Promise<Checkpoint[]> {
   try {
-    const r = await fetch(`${BASE}/api/checkpoints?dir=${encodeURIComponent(dir)}`);
+    const r = await afetch(`${BASE}/api/checkpoints?dir=${encodeURIComponent(dir)}`);
     return (await r.json()).checkpoints ?? [];
   } catch {
     return [];
@@ -123,7 +147,7 @@ export async function listCheckpoints(dir = "output"): Promise<Checkpoint[]> {
 }
 
 export function downloadUrl(path: string): string {
-  return `${BASE}/api/download?path=${encodeURIComponent(path)}`;
+  return tok(`${BASE}/api/download?path=${encodeURIComponent(path)}`);
 }
 
 export async function listModels(
@@ -132,7 +156,7 @@ export async function listModels(
 ): Promise<{ root: string; models: ModelEntry[] }> {
   const u = `${BASE}/api/models?arch=${encodeURIComponent(arch)}&root=${encodeURIComponent(root)}`;
   try {
-    const r = await fetch(u);
+    const r = await afetch(u);
     return await r.json();
   } catch {
     return { root, models: [] };
@@ -141,21 +165,21 @@ export async function listModels(
 
 export async function datasetList(dir: string, outputDir = ""): Promise<DatasetImage[]> {
   const u = `${BASE}/api/dataset/list?dir=${encodeURIComponent(dir)}&output_dir=${encodeURIComponent(outputDir)}`;
-  const r = await fetch(u);
+  const r = await afetch(u);
   return (await r.json()).images ?? [];
 }
 
 export function datasetImageUrl(path: string): string {
-  return `${BASE}/api/dataset/image?path=${encodeURIComponent(path)}`;
+  return tok(`${BASE}/api/dataset/image?path=${encodeURIComponent(path)}`);
 }
 
 // small thumbnail (grid) — much lighter to decode than the full-res image
 export function datasetThumbUrl(path: string, size = 384): string {
-  return `${BASE}/api/dataset/thumb?path=${encodeURIComponent(path)}&size=${size}`;
+  return tok(`${BASE}/api/dataset/thumb?path=${encodeURIComponent(path)}&size=${size}`);
 }
 
 export async function saveCaption(path: string, text: string, outputDir = ""): Promise<void> {
-  await fetch(`${BASE}/api/caption/save`, {
+  await afetch(`${BASE}/api/caption/save`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path, text, output_dir: outputDir }),
@@ -167,7 +191,7 @@ export function connectEvents(
   onOpen?: () => void,
   onClose?: () => void
 ): WebSocket {
-  const ws = new WebSocket(WS);
+  const ws = new WebSocket(tok(WS));
   ws.onopen = () => onOpen?.();
   ws.onclose = () => onClose?.();
   ws.onmessage = (msg) => {
@@ -181,7 +205,7 @@ export function connectEvents(
 }
 
 export async function startTraining(cfg: TrainConfig): Promise<{ ok: boolean; error?: string }> {
-  const r = await fetch(`${BASE}/api/train/start`, {
+  const r = await afetch(`${BASE}/api/train/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(cfg),
@@ -190,12 +214,12 @@ export async function startTraining(cfg: TrainConfig): Promise<{ ok: boolean; er
 }
 
 export async function stopTraining(): Promise<void> {
-  await fetch(`${BASE}/api/train/stop`, { method: "POST" });
+  await afetch(`${BASE}/api/train/stop`, { method: "POST" });
 }
 
 export async function health(): Promise<boolean> {
   try {
-    const r = await fetch(`${BASE}/api/health`);
+    const r = await afetch(`${BASE}/api/health`);
     return (await r.json()).ok === true;
   } catch {
     return false;

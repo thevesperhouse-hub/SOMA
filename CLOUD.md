@@ -53,7 +53,13 @@ Two ways to reach the UI from your PC:
 
 **Direct (simple, public port)** — expose port 8765 on Vast, then open the address it gives you
 (`http://<vast-ip>:<mapped-port>/`). The UI talks to the engine on the **same origin** (no config,
-even if Vast maps it to a different port number).
+even if Vast maps it to a different port number). ⚠️ Without a token the port is **open to anyone**
+(no auth) — use the token below, or the SSH tunnel.
+
+**Token (public port, but secured — no SSH needed)** — set `-e SOMA_TOKEN=<secret>` and open
+`http://<vast-ip>:<mapped-port>/?token=<secret>`. The UI grabs the token from the URL, stores it, and
+sends it on every request (`/api` + `/ws`); anything without it gets `401`. This is the simplest safe
+option: public port + a secret, no tunnel gymnastics.
 
 **SSH tunnel (private, nothing exposed)** — the image bundles an SSH server that **only starts if a
 public key is provided** (Vast passes `$PUBLIC_KEY` automatically when you add your key to the

@@ -32,6 +32,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Optional token auth. If SOMA_TOKEN is set (recommended when the port is public on the
+# cloud), every /api call and the /ws stream must carry it (query ?token= or header
+# X-Soma-Token). Empty => no auth (local/tunnel use). Lets users skip the SSH tunnel.
+_TOKEN = os.environ.get("SOMA_TOKEN", "")
+
+
+@app.middleware("http")
+async def _auth_guard(request, call_next):
+    if _TOKEN and request.url.path.startswith("/api"):
+        tok = request.query_params.get("token") or request.headers.get("x-soma-token")
+        if tok != _TOKEN:
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return await call_next(request)
+
 
 class Hub:
     def __init__(self):
@@ -365,6 +381,9 @@ async def caption_save(body: CaptionSave):
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
+    if _TOKEN and ws.query_params.get("token") != _TOKEN:
+        await ws.close(code=1008)  # policy violation
+        return
     await ws.accept()
     hub.clients.add(ws)
     try:
