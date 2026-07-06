@@ -1,7 +1,7 @@
-"""SOMA — CLI headless (entraînement, serveur, captioning) pour Docker / cloud / scripts.
+"""SOMA — headless CLI (training, server, captioning) for Docker / cloud / scripts.
 
-Réutilise EXACTEMENT le même moteur que l'UI (config.TrainConfig + trainer.TrainingJob),
-avec un rendu terminal stylisé (ANSI pur, zéro dépendance — marche dans un conteneur).
+Reuses EXACTLY the same engine as the UI (config.TrainConfig + trainer.TrainingJob),
+with styled terminal output (pure ANSI, zero deps — works in a container).
 
     python cli.py train  --arch flux --base /models/flux1-dev.safetensors \
                          --dataset /data/mychar --steps 1200 --precision nf4
@@ -72,14 +72,14 @@ class _Renderer:
                 self.total = e.get("total_steps", 0) or 0
                 self.t0 = time.time()
                 self._clear()
-                print(f"  {ACC}▶ entraînement{R} {DIM}({self.total} steps){R}")
+                print(f"  {ACC}▶ training{R} {DIM}({self.total} steps){R}")
             elif st == "sampling":
                 pass
             elif st == "done":
                 self._clear()
                 secs = e.get("secs", time.time() - self.t0)
                 out = e.get("comfyui") or e.get("output") or ""
-                print(f"\n  {GOOD}{B}✓ terminé{R} en {_fmt_time(secs)}")
+                print(f"\n  {GOOD}{B}✓ done{R} in {_fmt_time(secs)}")
                 if out:
                     print(f"  {GOOD}LoRA →{R} {out}")
             elif st == "error":
@@ -89,7 +89,7 @@ class _Renderer:
             self._render_step(e)
         elif t == "sample":
             self._clear()
-            print(f"  {MUT}· aperçu step {e.get('step')}{R}")
+            print(f"  {MUT}· preview step {e.get('step')}{R}")
 
     def _render_step(self, e):
         step = e.get("step", 0); total = e.get("total_steps", self.total) or 1
@@ -150,9 +150,9 @@ def cmd_train(args):
 
     cfg = _build_cfg(args)
     if getattr(args, "demo", False):
-        cfg.simulate = True  # courbe simulée : voir l'UI terminal sans GPU ni modèle
-    _banner("entraînement", f"{cfg.arch}  ·  {os.path.basename(cfg.base_model) or cfg.base_model}")
-    print(f"  {MUT}dataset{R} {cfg.dataset_dir}   {MUT}précision{R} {cfg.precision}   "
+        cfg.simulate = True  # simulated curve: see the terminal UI with no GPU or model
+    _banner("training", f"{cfg.arch}  ·  {os.path.basename(cfg.base_model) or cfg.base_model}")
+    print(f"  {MUT}dataset{R} {cfg.dataset_dir}   {MUT}precision{R} {cfg.precision}   "
           f"{MUT}rank{R} {cfg.rank}   {MUT}steps{R} {cfg.max_steps}   {MUT}res{R} {cfg.resolution}")
     print(f"{DIM}  {'─'*58}{R}")
 
@@ -163,7 +163,7 @@ def cmd_train(args):
         while job.is_alive():
             job.join(timeout=0.5)
     except KeyboardInterrupt:
-        print(f"\n  {WARN}· arrêt demandé, on termine proprement…{R}")
+        print(f"\n  {WARN}· stop requested, finishing cleanly…{R}")
         job.stop()
         job.join()
     print()
@@ -201,14 +201,14 @@ def cmd_caption(args):
     cfg = CaptionConfig(dataset_dir=args.dataset, instance_token=args.token,
                         overwrite=args.overwrite)
     run_captioning(cfg, emit, threading.Event())
-    print(f"\n  {GOOD}✓ captions écrites{R}\n")
+    print(f"\n  {GOOD}✓ captions written{R}\n")
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(prog="soma", description="SOMA — entraînement de LoRA headless")
+    p = argparse.ArgumentParser(prog="soma", description="SOMA — headless LoRA training")
     sub = p.add_subparsers(dest="cmd", required=False)
 
-    pt = sub.add_parser("train", help="lancer un entraînement")
+    pt = sub.add_parser("train", help="run a training")
     pt.add_argument("--config", help="fichier JSON de config (prioritaire sur les flags)")
     pt.add_argument("--arch", default="sdxl")
     pt.add_argument("--base", default="", help="checkpoint local ou repo HF")
@@ -222,8 +222,8 @@ def main(argv=None):
     pt.add_argument("--lr", type=float, default=1e-4)
     pt.add_argument("--steps", type=int, default=1200)
     pt.add_argument("--precision", default="bf16", choices=["bf16", "int8", "nf4"])
-    pt.add_argument("--demo", action="store_true", help="mode démo (courbe simulée, sans GPU ni modèle)")
-    pt.add_argument("--no-grad-ckpt", action="store_true", help="désactive le gradient checkpointing")
+    pt.add_argument("--demo", action="store_true", help="demo mode (simulated curve, no GPU or model)")
+    pt.add_argument("--no-grad-ckpt", action="store_true", help="disable gradient checkpointing")
     pt.add_argument("--sample-prompt", default="")
     pt.add_argument("--zimage-vae", default="")
     pt.add_argument("--seed", type=int, default=42)
@@ -245,7 +245,7 @@ def main(argv=None):
 
     args = p.parse_args(argv)
     if not getattr(args, "cmd", None):
-        # aucune sous-commande -> launcher interactif (TUI stylisé)
+        # no subcommand -> interactive launcher (styled TUI)
         try:
             from launcher import run
         except ImportError:

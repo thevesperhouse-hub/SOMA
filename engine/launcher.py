@@ -1,8 +1,8 @@
-"""SOMA — launcher terminal (TUI) stylisé, propulsé par `rich`.
+"""SOMA — styled terminal launcher (TUI), powered by `rich`.
 
-Lancé quand `python cli.py` est appelé sans sous-commande : grand logo SOMA en blocs
-+ dégradé, panneau système (GPU/VRAM), menu interactif (entraîner / captionner /
-UI web / architectures). Le vrai moteur reste le même (config.TrainConfig + TrainingJob).
+Shown when `python cli.py` is called with no subcommand: a big block SOMA logo
++ gradient, system panel (GPU/VRAM), interactive menu (train / caption /
+web UI / architectures). The real engine stays the same (config.TrainConfig + TrainingJob).
 """
 import base64
 import io
@@ -28,7 +28,7 @@ _O = ["██████", "██  ██", "██  ██", "██  ██"
 _M = ["██   ██", "███ ███", "██ █ ██", "██   ██", "██   ██"]
 _A = [" ████ ", "██  ██", "██████", "██  ██", "██  ██"]
 _LETTERS = [_S, _O, _M, _A]
-# dégradé teal (haut -> bas)
+# teal gradient (top -> bottom)
 _GRAD = ["#7df0dd", "#43cf9f", "#2bb894", "#1f9c85", "#177c72"]
 
 
@@ -44,15 +44,15 @@ def _logo() -> Text:
 
 
 def _logo_frame(edge: int, reveal: bool) -> Text:
-    """Une frame d'anim : `edge` = position du faisceau. reveal=True → écrit
-    le logo de gauche à droite ; reveal=False → simple balayage lumineux."""
+    """One anim frame: `edge` = beam position. reveal=True → writes
+    the logo left to right; reveal=False → a simple light sweep."""
     t = Text(justify="center")
     for r, line in enumerate(_logo_lines()):
         for x, ch in enumerate(line):
             if ch == " ":
                 t.append(" ")
             elif reveal and x > edge:
-                t.append(" ")  # pas encore révélé
+                t.append(" ")  # not revealed yet
             elif abs(x - edge) <= 1:
                 t.append(ch, style="bold #eafff9")  # faisceau (highlight)
             else:
@@ -76,8 +76,8 @@ _SUBTITLE = "L O R A   T R A I N I N G   S T U D I O"
 
 
 def intro():
-    """Intro animée : le logo s'écrit sous un faisceau, puis sous-titre à la machine
-    à écrire. Sautée si pas de vrai terminal (pipe/Docker)."""
+    """Animated intro: the logo writes itself under a beam, then a typewriter
+    subtitle. Skipped if not a real terminal (pipe/Docker)."""
     from rich.live import Live
 
     if not console.is_terminal:
@@ -87,14 +87,14 @@ def intro():
     console.print("\n")
     width = max(len(l) for l in _logo_lines())
     with Live(console=console, refresh_per_second=60, screen=False) as live:
-        for edge in range(-2, width + 2):           # écriture gauche→droite
+        for edge in range(-2, width + 2):           # left→right writing
             live.update(Align.center(_logo_frame(edge, reveal=True)))
             time.sleep(0.018)
         for edge in range(-2, width + 3):           # balayage lumineux
             live.update(Align.center(_logo_frame(edge, reveal=False)))
             time.sleep(0.012)
         live.update(Align.center(_logo()))
-    # sous-titre machine à écrire
+    # typewriter subtitle
     with Live(console=console, refresh_per_second=60, screen=False) as live:
         for i in range(len(_SUBTITLE) + 1):
             live.update(Align.center(Text(_SUBTITLE[:i], style="dim #7df0dd")))
@@ -114,7 +114,7 @@ def _gpu_line() -> str:
         gb = lambda m: f"{int(float(m)) / 1024:.1f}"
         return f"[bold #7df0dd]{name}[/]  ·  VRAM [bold]{gb(used)}[/]/[dim]{gb(total)} Go[/]  ·  {temp}°C"
     except Exception:
-        return "[dim]GPU non détecté (mode démo possible)[/]"
+        return "[dim]GPU not detected (demo mode available)[/]"
 
 
 def splash():
@@ -128,7 +128,7 @@ def splash():
 
 # --------------------------------------------------------------- menu
 _MENU = [
-    ("1", "Entraîner un LoRA", "train"),
+    ("1", "Train a LoRA", "train"),
     ("2", "Captionner un dataset", "caption"),
     ("3", "Lancer l'UI web (serve)", "serve"),
     ("4", "Explorer les architectures", "archs"),
@@ -157,24 +157,24 @@ def browse_archs():
 
     t = Table(title="[bold #7df0dd]Architectures[/]", border_style="#177c72",
               header_style="bold #43cf9f", expand=True)
-    t.add_column("id"); t.add_column("modèle"); t.add_column("backend")
+    t.add_column("id"); t.add_column("model"); t.add_column("backend")
     t.add_column("objectif"); t.add_column("quant"); t.add_column("taille", justify="right")
     for f in FAMILIES:
         q = "[#43cf9f]nf4[/]" if f.get("quantizable") else "[dim]bf16[/]"
         t.add_row(f["id"], f["label"], f["backend"], f["prediction"], q, f"~{f.get('params_b','?')}B")
     console.print(t)
-    Prompt.ask("  [dim]entrée pour revenir[/]", default="")
+    Prompt.ask("  [dim]enter to go back[/]", default="")
 
 
 # --------------------------------------------------------------- cockpit : helpers
-# braille : 2 colonnes × 4 lignes de points par caractère
+# braille: 2 columns × 4 rows of dots per character
 _BR = ((0x01, 0x08), (0x02, 0x10), (0x04, 0x20), (0x40, 0x80))
 
 
 def _loss_chart(values, w, h) -> Text:
-    """Courbe de loss en caractères braille (sparkline haute résolution)."""
+    """Loss curve in braille characters (high-resolution sparkline)."""
     if len(values) < 2:
-        return Text("\n" * (h // 2) + "  en attente des premières steps…", style="dim")
+        return Text("\n" * (h // 2) + "  waiting for the first steps…", style="dim")
     wd, hd = w * 2, h * 4
     lo, hi = min(values), max(values)
     rng = (hi - lo) or 1.0
@@ -186,7 +186,7 @@ def _loss_chart(values, w, h) -> Text:
         grid[yd // 4][xd // 2] |= _BR[yd % 4][xd % 2]
     t = Text()
     for r in range(h):
-        # graduation loss à gauche
+        # loss scale on the left
         if r == 0:
             t.append(f"{hi:>6.3f} ", style="dim")
         elif r == h - 1:
@@ -201,7 +201,7 @@ def _loss_chart(values, w, h) -> Text:
 
 
 def _procedural_preview(sharpness):
-    """Aperçu synthétique (mode démo) : un orbe teal qui émerge du bruit."""
+    """Synthetic preview (demo mode): a teal orb emerging from noise."""
     from PIL import Image
 
     import random as _r
@@ -229,7 +229,7 @@ def _decode_preview(data_url):
 
 
 def _img_to_text(img, cols, rows) -> Text:
-    """Image → demi-blocs ▀ (2 px verticaux par caractère, truecolor)."""
+    """Image → half-blocks ▀ (2 vertical px per character, truecolor)."""
     from PIL import Image
 
     img = img.resize((cols, rows * 2), Image.LANCZOS)
@@ -262,7 +262,7 @@ def _gpu_text() -> Text:
             _gpu_cache["d"] = None
     d = _gpu_cache["d"]
     if not d:
-        return Text("  pas de GPU (mode démo)", style="dim")
+        return Text("  no GPU (demo mode)", style="dim")
     util, mu, mt, temp, pw = d
 
     def bar(frac, w=12):
@@ -281,7 +281,7 @@ def _gpu_text() -> Text:
     return t
 
 
-# --------------------------------------------------------------- entraînement (cockpit)
+# --------------------------------------------------------------- training (cockpit)
 def _train_dashboard(cfg):
     from rich.live import Live
 
@@ -329,11 +329,11 @@ def _train_dashboard(cfg):
         chart = Panel(_loss_chart(list(losses), 40, 8),
                       title=f"[bold]loss[/] [#7df0dd]{loss_now}[/]", border_style="#177c72")
         if preview["img"] is not None:
-            prev = Panel(_img_to_text(preview["img"], 34, 16), title="[bold]aperçu du LoRA[/]",
+            prev = Panel(_img_to_text(preview["img"], 34, 16), title="[bold]LoRA preview[/]",
                          border_style="#177c72", padding=0)
         else:
-            prev = Panel(Align.center(Text("\n\n\n  l'aperçu apparaîtra ici\n  au 1er échantillon", style="dim"),
-                                      vertical="middle"), title="[bold]aperçu du LoRA[/]", border_style="#177c72")
+            prev = Panel(Align.center(Text("\n\n\n  the preview will appear here\n  at the 1st sample", style="dim"),
+                                      vertical="middle"), title="[bold]LoRA preview[/]", border_style="#177c72")
         row = Table.grid(expand=True)
         row.add_column(ratio=3); row.add_column(ratio=2)
         row.add_row(chart, prev)
@@ -358,11 +358,11 @@ def _train_dashboard(cfg):
             live.update(_render())
     except KeyboardInterrupt:
         job.stop(); job.join()
-        console.print("  [#e0a54a]· arrêt demandé[/]")
+        console.print("  [#e0a54a]· stop requested[/]")
     if state["err"]:
         console.print(Panel(f"[bold #e05a5a]✗ erreur[/]  {state['err']}", border_style="#e05a5a"))
     elif state["done"]:
-        console.print(Panel(f"[bold #43cf9f]✓ terminé[/]  LoRA → [white]{state['out']}[/]",
+        console.print(Panel(f"[bold #43cf9f]✓ done[/]  LoRA → [white]{state['out']}[/]",
                             border_style="#43cf9f"))
 
 
@@ -371,8 +371,8 @@ def train_flow():
     from families import FAMILIES, get_family
 
     ids = [f["id"] for f in FAMILIES]
-    console.print(Align.center(Text("↓ configure ton run (entrée = défaut)", style="dim")))
-    # mode d'abord : demo = démonstration sans GPU ni modèle (courbe + aperçu simulés)
+    console.print(Align.center(Text("↓ configure your run (enter = default)", style="dim")))
+    # mode first: demo = demonstration with no GPU or model (simulated curve + preview)
     demo = Prompt.ask("  [bold #43cf9f]mode[/]", choices=["demo", "reel"], default="demo") == "demo"
     arch = Prompt.ask("  [bold #43cf9f]archi[/] [dim](sdxl, flux, qwen_image…)[/]",
                       choices=ids, default="sdxl", show_choices=False)
@@ -387,10 +387,10 @@ def train_flow():
         max_steps=steps, resolution=fam.get("resolution", 1024),
         precision="nf4" if fam.get("quantizable") else "bf16",
     )
-    cfg.sample_every = max(5, cfg.max_steps // 10)  # aperçus fréquents (voir la précision monter)
+    cfg.sample_every = max(5, cfg.max_steps // 10)  # frequent previews (watch the sharpness rise)
     console.print()
     _train_dashboard(cfg)
-    Prompt.ask("  [dim]entrée pour revenir au menu[/]", default="")
+    Prompt.ask("  [dim]enter to go back to the menu[/]", default="")
 
 
 def caption_flow():
@@ -418,8 +418,8 @@ def caption_flow():
     with Live(prog, console=console, refresh_per_second=8):
         while job.is_alive():
             time.sleep(0.1)
-    console.print("  [bold #43cf9f]✓ captions écrites[/]")
-    Prompt.ask("  [dim]entrée pour revenir[/]", default="")
+    console.print("  [bold #43cf9f]✓ captions written[/]")
+    Prompt.ask("  [dim]enter to go back[/]", default="")
 
 
 def _port_free(port: int) -> bool:
@@ -430,17 +430,17 @@ def _port_free(port: int) -> bool:
 
 
 def serve_flow():
-    # défaut = 1er port libre à partir de 8765 (évite le clash avec un moteur déjà lancé)
+    # default = first free port from 8765 (avoids clashing with an already-running engine)
     default = 8765
     while not _port_free(default) and default < 8790:
         default += 1
-    port = int(Prompt.ask("  [bold #43cf9f]port[/] [dim](entrée pour accepter)[/]", default=str(default)))
+    port = int(Prompt.ask("  [bold #43cf9f]port[/] [dim](enter to accept)[/]", default=str(default)))
     if not _port_free(port):
-        console.print(f"  [#e0a54a]· le port {port} est déjà utilisé[/] — relance et choisis-en un autre.")
+        console.print(f"  [#e0a54a]· port {port} is already in use[/] — relaunch and pick another one.")
         return
     console.print(Panel(
         f"[bold]UI web[/] → [#7df0dd]http://localhost:{port}/[/]\n"
-        f"[dim]Ctrl+C pour arrêter · sur le cloud : http://<ip>:{port}/[/]",
+        f"[dim]Ctrl+C to stop · on the cloud: http://<ip>:{port}/[/]",
         border_style="#177c72", padding=(0, 2)))
     import uvicorn
 
@@ -456,7 +456,7 @@ def run():
     first = True
     while True:
         if first:
-            intro(); first = False   # intro animée une seule fois
+            intro(); first = False   # animated intro only once
         else:
             splash()
         try:
@@ -469,7 +469,7 @@ def run():
             actions[choice]()
         except (KeyboardInterrupt, EOFError):
             continue
-    console.print("\n  [dim]à bientôt.[/]\n")
+    console.print("\n  [dim]see you.[/]\n")
 
 
 if __name__ == "__main__":
