@@ -4,7 +4,7 @@ AuraFlow = MMDiT flow-matching, texte **UMT5** (pile-t5), VAE AutoencoderKL 4 ch
 Distributed as a diffusers repo → from_pretrained(subfolder). base_model default fal/AuraFlow-v0.3.
 
 Verified (pipeline_aura_flow.py) : prompt_embeds = `text_encoder(ids, mask)[0] * mask`
-(padding mis à zéro, PAS de mask passé au transformer) ; latents 4D unpackeds (in=4,
+(padding zeroed, NO mask passed to the transformer); latents 4D unpacked (in=4,
 patch 2) ; flow STANDARD → timestep = sigma, CIBLE = x0 - x1 ; forward =
 transformer(hidden_states[B,4,H,W], encoder_hidden_states, timestep).
 """

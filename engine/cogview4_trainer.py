@@ -2,7 +2,7 @@
 
 CogView4 = DiT flow-matching, texte **GLM-4-9B** (`hidden_states[-2]`), VAE AutoencoderKL
 16 channels, + micro-conditionnement SDXL (original_size / target_size / crop_coords).
-Encoder 9B → chargé en nf4 pour tenir la VRAM pendant le pré-calcul, puis déchargé.
+Encoder 9B → loaded in nf4 to fit VRAM during pre-compute, then unloaded.
 Repo diffusers → from_pretrained(subfolder). base_model default THUDM/CogView4-6B.
 
 Verified (pipeline_cogview4.py) : latents 4D (in=16, patch 2) ; flow STANDARD → cible

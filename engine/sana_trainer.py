@@ -1,6 +1,6 @@
 """Real LoRA training for Sana — diffusers + peft.
 
-Sana = DiT flow-matching linéaire, texte **Gemma-2**, VAE **AutoencoderDC** (compression
+Sana = linear flow-matching DiT, **Gemma-2** text, **AutoencoderDC** VAE (compression
 32×, latent 32 channels, deterministic). Distributed as a diffusers repo → from_pretrained.
 base_model = HF repo (default Efficient-Large-Model/Sana_1600M_1024px_diffusers) or a local folder.
 

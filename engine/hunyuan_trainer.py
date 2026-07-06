@@ -1,12 +1,12 @@
 """Real LoRA training for HunyuanImage — diffusers + peft, QLoRA nf4.
 
 HunyuanImage = DiT flow-matching (~17B), texte principal **Qwen2.5-VL** (+ ByT5 pour le
-rendu de texte entre guillemets — IGNORÉ ici, inutile pour une LoRA d'identité), VAE
-**AutoencoderKLHunyuanImage** (compression 32×, 64 channels latents, latents 4D unpackeds,
+quoted-text rendering — IGNORED here, useless for an identity LoRA), VAE
+**AutoencoderKLHunyuanImage** (32× compression, 64 latent channels, 4D unpacked latents,
 in=64). Repo diffusers → from_pretrained(subfolder). base_model default tencent/HunyuanImage-2.1.
 
 Verified (pipeline_hunyuanimage.py / transformer_hunyuanimage.py) : Qwen2.5-VL avec gabarit
-système + drop 34 tokens + `hidden_states[-3]` (skip_layer=2) + mask ; use_meanflow=False →
+system + drop 34 tokens + `hidden_states[-3]` (skip_layer=2) + mask ; use_meanflow=False →
 `timestep_r=None` ; guidance_embeds=False → `guidance=None` ; glyph off → `encoder_hidden_states_2
 =None`. Flow standard : timestep = sigma*1000, CIBLE = x0 - x1. forward = transformer(
 hidden_states[B,64,H,W], timestep, encoder_hidden_states, encoder_attention_mask).
@@ -102,7 +102,7 @@ def run_hunyuan_training(cfg, emit, stop_event, family=None):
                        return_tensors="pt").to(device)
             out = te(input_ids=toks.input_ids, attention_mask=toks.attention_mask,
                      output_hidden_states=True)
-            emb = out.hidden_states[-(_SKIP + 1)][:, _DROP:]     # [-3], drop préfixe
+            emb = out.hidden_states[-(_SKIP + 1)][:, _DROP:]     # [-3], drop prefix
             mask = toks.attention_mask[:, _DROP:]
             emb_cache.append((emb.to("cpu", dtype), mask.to("cpu")))
     del te

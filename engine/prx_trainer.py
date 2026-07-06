@@ -1,12 +1,12 @@
 """Real LoRA training for PRX (Photoroom/prxpixel-t2i) — diffusers + peft.
 
-PRX = DiT flow-matching compact (depth 16, hidden 1792, in_channels 16), texte encodé
-par un **T5Gemma encoder** (context_in_dim 2304), VAE AutoencoderKL 16 channels. Distribué
+PRX = compact flow-matching DiT (depth 16, hidden 1792, in_channels 16), text encoded
+by a **T5Gemma encoder** (context_in_dim 2304), AutoencoderKL VAE 16 channels. Distributed
 en **repo diffusers** (pas un single-file ComfyUI) → on charge les composants via
 from_pretrained(subfolder). base_model = HF repo (default Photoroom/prxpixel-t2i) ou dossier
 diffusers local.
 
-API vérifiée (pipeline_prx.py / transformer_prx.py) : latents **4D unpackeds** [B,16,H,W]
+API verified (pipeline_prx.py / transformer_prx.py): latents **4D unpacked** [B,16,H,W]
 (patchify interne, patch_size 2) ; texte = `text_encoder(ids, mask, output_hidden_states)
 ["last_hidden_state"]` + mask ; flow STANDARD (no negation) → timestep = **sigma**,
 CIBLE = **x0 - x1** ; forward = transformer(hidden_states, timestep=sigma,
@@ -24,12 +24,12 @@ from real_trainer import _list_dataset
 
 _PRX_REPO = "Photoroom/prxpixel-t2i"
 _TOK_MAX = 256
-# PRX = attention à projections FUSIONNÉES (img_qkv_proj / txt_kv_proj), pas to_q/k/v.
+# PRX = attention with FUSED projections (img_qkv_proj / txt_kv_proj), not to_q/k/v.
 _LORA_TARGETS = ["img_qkv_proj", "txt_kv_proj", "to_out.0"]
 
 
 def _resolve(base_model):
-    """base_model = dossier diffusers local OU repo HF (défaut PRX)."""
+    """base_model = local diffusers folder OR HF repo (default PRX)."""
     b = clean_path(base_model)
     return b if b else _PRX_REPO
 

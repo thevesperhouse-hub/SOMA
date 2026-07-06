@@ -1,12 +1,12 @@
 """Real LoRA training for Stable Diffusion 3.5 — diffusers + peft, QLoRA nf4.
 
 SD3.5 = MMDiT flow-matching, **3 text encoders** : CLIP-L (768) + CLIP-G (1280) +
-T5-XXL (4096). Distributed as a diffusers repo → composants chargés via from_pretrained
+T5-XXL (4096). Distributed as a diffusers repo → components loaded via from_pretrained
 (subfolder). base_model = HF repo (default stabilityai/stable-diffusion-3.5-medium) ou
 dossier diffusers local.
 
-Assemblage embeds (vérifié pipeline_stable_diffusion_3.py) :
-  clip = cat([clipL.hidden[-2](768), clipG.hidden[-2](1280)], -1) -> 2048, PAD à 4096,
+Embed assembly (verified pipeline_stable_diffusion_3.py):
+  clip = cat([clipL.hidden[-2](768), clipG.hidden[-2](1280)], -1) -> 2048, PAD to 4096,
   puis cat([clip, t5], dim=seq) -> encoder_hidden_states ; pooled = cat([poolL, poolG]) -> 2048.
 Flow STANDARD (no negation) : timestep = sigma*1000, CIBLE = x0 - x1.
 forward = transformer(hidden_states[B,16,H,W], timestep, encoder_hidden_states,

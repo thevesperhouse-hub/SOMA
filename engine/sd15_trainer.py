@@ -1,11 +1,11 @@
 """Real LoRA training for Stable Diffusion 1.5 — diffusers + peft (PAS kohya).
 
 SD1.5 = UNet epsilon (comme SDXL) MAIS **un seul text encoder** (CLIP ViT-L, dim 768),
-**pas d'add_time_ids ni de pooled** (≠ SDXL). Résolution native 512. On réutilise les
+**no add_time_ids or pooled** (≠ SDXL). Native resolution 512. We reuse the
 helpers de real_trainer (dataset, bucketing par ratio, export kohya `lora_unet_`).
 
 forward = unet(noisy, timestep, encoder_hidden_states=clip[B,77,768]).sample ; cible =
-bruit (epsilon) ou velocity (v-pred si la famille le déclare). Export LoRA ComfyUI/kohya.
+noise (epsilon) or velocity (v-pred if the family declares it). LoRA export ComfyUI/kohya.
 """
 import os
 import random

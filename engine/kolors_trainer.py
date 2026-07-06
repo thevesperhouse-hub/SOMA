@@ -1,13 +1,13 @@
 """Real LoRA training for Kolors — diffusers + peft.
 
-Kolors = UNet **SDXL** (epsilon, add_time_ids) mais texte encodé par **ChatGLM3-6B**
+Kolors = **SDXL** UNet (epsilon, add_time_ids) but text encoded by **ChatGLM3-6B**
 (au lieu du double CLIP). VAE SDXL 4 channels. Distributed as a diffusers repo →
 from_pretrained(subfolder). base_model default Kwai-Kolors/Kolors-diffusers.
 
 Verified (pipeline_kolors.py) : ChatGLM(ids, mask, position_ids, output_hidden_states) →
 encoder_hidden_states = `hidden_states[-2].permute(1,0,2)` ; pooled = `hidden_states[-1][-1,:,:]`.
 UNet forward = unet(noisy, ts, encoder_hidden_states, added_cond_kwargs={text_embeds:pooled,
-time_ids:add_time_ids}). Entraînement DDPM epsilon : ts~U[0,1000], cible = bruit.
+time_ids:add_time_ids}). DDPM epsilon training: ts~U[0,1000], target = noise.
 Export LoRA kohya `lora_unet_` (compatible ComfyUI).
 """
 import os

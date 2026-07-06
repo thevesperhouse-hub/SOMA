@@ -1,11 +1,11 @@
 """Real LoRA training for Ovis-Image — diffusers + peft, QLoRA nf4.
 
-Ovis-Image = archi Flux (packed 2×2 → 64 channels, VAE KL 16ch, ids 2D) MAIS texte encodé
+Ovis-Image = Flux arch (packed 2×2 → 64 channels, KL VAE 16ch, 2D ids) BUT text encoded
 par **Qwen3** (chat template) et **sans guidance**. Distributed as a diffusers repo →
-from_pretrained(subfolder). base_model = repo/dossier (obligatoire, pas de défaut fiable).
+from_pretrained(subfolder). base_model = repo/folder (required, no reliable default).
 
 Verified (pipeline_ovis_image.py) : message chat = system_prompt + caption ; embeds =
-`Qwen3(ids, mask).last_hidden_state * mask` puis on JETTE les 28 premiers tokens (préfixe) ;
+`Qwen3(ids, mask).last_hidden_state * mask` then we DROP the first 28 tokens (prefix);
 text_ids = zeros[seq,3] ; flow standard → timestep = sigma (le pipeline passe /1000),
 CIBLE = x0 - x1 ; forward = transformer(hidden_states[B,seq,64], timestep, encoder_hidden_states,
 txt_ids, img_ids).
@@ -44,7 +44,7 @@ def run_ovis_training(cfg, emit, stop_event, family=None):
     precision = getattr(cfg, "precision", "nf4") or "nf4"
     src = clean_path(cfg.base_model)
     if not src:
-        raise RuntimeError("Ovis-Image : renseigne le repo/dossier diffusers du modèle (base_model).")
+        raise RuntimeError("Ovis-Image: provide the model's diffusers repo/folder (base_model).")
 
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
@@ -58,7 +58,7 @@ def run_ovis_training(cfg, emit, stop_event, family=None):
     h = w = res // 8
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])
 
-    # ---------------- 1) cache latents (VAE KL 16ch, packé 64) ----------------
+    # ---------------- 1) cache latents (VAE KL 16ch, packed 64) ----------------
     emit(evt("log", level="info", message="Pre-computing latents (VAE)…"))
     vae = AutoencoderKL.from_pretrained(src, subfolder="vae", torch_dtype=torch.float32).to(device)
     scaling = vae.config.scaling_factor
@@ -99,7 +99,7 @@ def run_ovis_training(cfg, emit, stop_event, family=None):
                        return_tensors="pt", add_special_tokens=False).to(device)
             emb = te(input_ids=toks.input_ids, attention_mask=toks.attention_mask).last_hidden_state
             emb = emb * toks.attention_mask[..., None]
-            emb = emb[:, _DROP:, :]  # jette le préfixe système
+            emb = emb[:, _DROP:, :]  # drops the system prefix
             emb_cache.append(emb.to("cpu", dtype))
     txt_ids = torch.zeros(emb_cache[0].shape[1], 3, device=device, dtype=dtype)
     del te
