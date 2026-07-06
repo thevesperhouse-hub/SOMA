@@ -172,7 +172,7 @@ def cmd_train(args):
 def cmd_serve(args):
     import uvicorn
 
-    _banner("serveur", f"API + UI web sur http://{args.host}:{args.port}")
+    _banner("server", f"API + web UI on http://{args.host}:{args.port}")
     print(f"  {MUT}web UI{R}: open {ACC}http://<ip>:{args.port}/{R} in a browser")
     print(f"  {MUT}API{R}    : POST /api/train/start · WS /ws\n")
     uvicorn.run("server:app", host=args.host, port=args.port, log_level="warning",
