@@ -163,6 +163,21 @@ export async function listModels(
   }
 }
 
+export async function uploadDataset(
+  dir: string,
+  files: FileList | File[]
+): Promise<{ ok: boolean; saved: number; error?: string }> {
+  const fd = new FormData();
+  fd.append("dir", dir);
+  for (const f of Array.from(files)) fd.append("files", f);
+  try {
+    const r = await afetch(`${BASE}/api/dataset/upload`, { method: "POST", body: fd });
+    return await r.json();
+  } catch {
+    return { ok: false, saved: 0, error: "upload failed" };
+  }
+}
+
 export async function datasetList(dir: string, outputDir = ""): Promise<DatasetImage[]> {
   const u = `${BASE}/api/dataset/list?dir=${encodeURIComponent(dir)}&output_dir=${encodeURIComponent(outputDir)}`;
   const r = await afetch(u);

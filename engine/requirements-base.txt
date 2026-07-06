@@ -1,7 +1,8 @@
-# Serveur + mode démo (aucune dep GPU). Suffit pour lancer le dashboard live.
-# Versions à jour (juin 2026).
+# Server + demo mode (no GPU deps). Enough to run the live dashboard.
+# Up-to-date versions (June 2026).
 fastapi==0.138.2
 uvicorn[standard]==0.49.0
 pydantic>=2.11,<3
-# TUI stylisé (launcher CLI : logo, panneaux, dashboard live)
+python-multipart>=0.0.9   # browser dataset upload (FastAPI multipart forms)
+# Styled TUI (CLI launcher: logo, panels, live dashboard)
 rich>=13,<16

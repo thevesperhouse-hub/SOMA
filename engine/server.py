@@ -13,7 +13,7 @@ import glob
 import json
 import os
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, Form, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 
@@ -328,6 +328,25 @@ async def dataset_list(dir: str, output_dir: str = ""):
                         caption = f.read()
                 images.append({"path": p, "name": os.path.basename(p), "caption": caption})
     return {"images": images, "count": len(images)}
+
+
+@app.post("/api/dataset/upload")
+async def dataset_upload(dir: str = Form(...), files: list[UploadFile] = File(...)):
+    """Save browser-uploaded images into a server-side folder — lets users skip scp:
+    pick a target path, drop images, train. Only image files are kept."""
+    d = clean_path(dir)
+    if not d:
+        return {"ok": False, "error": "no target folder", "saved": 0}
+    os.makedirs(d, exist_ok=True)
+    saved = 0
+    for f in files:
+        name = os.path.basename(f.filename or "")
+        if not name.lower().endswith(_IMG_EXTS):
+            continue
+        with open(os.path.join(d, name), "wb") as out:
+            out.write(await f.read())
+        saved += 1
+    return {"ok": True, "saved": saved, "dir": d}
 
 
 _CACHE_HDR = {"Cache-Control": "public, max-age=86400"}

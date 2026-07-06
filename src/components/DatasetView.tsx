@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CaptionConfig, DatasetImage } from "../types";
-import { captionModelStatus, datasetList, datasetThumbUrl, saveCaption } from "../lib/api";
+import { captionModelStatus, datasetList, datasetThumbUrl, saveCaption, uploadDataset } from "../lib/api";
 import type { T } from "../lib/i18n";
 import { cn } from "../lib/utils";
 import { Button, Card, CardHeader, Field, Input, Progress } from "./ui";
@@ -54,6 +54,8 @@ export function DatasetView({
   const [images, setImages] = useState<DatasetImage[]>([]);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   async function pickFolder() {
@@ -67,6 +69,19 @@ export function DatasetView({
   }
 
   const cleanDir = () => dir.trim().replace(/^["']+|["']+$/g, "").trim();
+
+  async function onUpload(files: FileList | null) {
+    const d = cleanDir();
+    if (!files || !files.length || !d) return;
+    setUploading(true);
+    try {
+      await uploadDataset(d, files);
+      await load();
+    } finally {
+      setUploading(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }
 
   const load = useCallback(async (resetLive = true) => {
     const d = dir.trim().replace(/^["']+|["']+$/g, "").trim();
@@ -139,16 +154,31 @@ export function DatasetView({
             <div className="text-xs text-muted">⭳ {t("ds.modelDownload")}</div>
           ) : null}
         </div>
-        <div className="grid grid-cols-[1fr_auto_auto] items-end gap-3 px-5 pb-3">
+        <div className="grid grid-cols-[1fr_auto_auto_auto] items-end gap-3 px-5 pb-3">
           <Field label={t("ds.folder")}>
             <div className="flex gap-2">
-              <Input value={dir} placeholder="C:\\Users\\...\\lora01" onChange={(e) => setDir(e.target.value)} />
+              <Input value={dir} placeholder="/root/lora01" onChange={(e) => setDir(e.target.value)} />
               {inTauri && <Button variant="ghost" onClick={() => pickFolder()}>{t("cfg.browse")}</Button>}
             </div>
           </Field>
           <Field label={t("ds.token")}>
             <Input value={token} onChange={(e) => setToken(e.target.value)} className="w-24" />
           </Field>
+          <input
+            ref={fileInput}
+            type="file"
+            multiple
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => onUpload(e.target.files)}
+          />
+          <Button
+            variant="ghost"
+            onClick={() => fileInput.current?.click()}
+            disabled={uploading || !dir.trim()}
+          >
+            {uploading ? t("ds.uploading") : t("ds.upload")}
+          </Button>
           <Button variant="ghost" onClick={() => load()} disabled={loading || !dir.trim()}>
             {loading ? t("ds.loading") : t("ds.load")}
           </Button>
