@@ -1,6 +1,6 @@
 export interface TrainConfig {
   project_name: string;
-  arch: string; // id de famille de modèle (voir /api/families)
+  arch: string; // model family id (see /api/families)
   base_model: string;
   dataset_dir: string;
   instance_token: string;

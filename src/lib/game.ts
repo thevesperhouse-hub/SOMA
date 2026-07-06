@@ -1,5 +1,5 @@
-// Couche gamification : niveaux + succès calculés à partir des stats du run.
-// Volontairement côté client (le moteur reste pur) et désactivable.
+// Gamification layer: levels + achievements computed from the run stats.
+// Deliberately client-side (the engine stays pure) and can be turned off.
 
 export interface GameStats {
   steps: number;
@@ -20,19 +20,19 @@ export interface Achievement {
 }
 
 export const ACHIEVEMENTS: Achievement[] = [
-  { id: "first_step", title: "Premier pas", desc: "Lancer un entraînement", icon: "✦",
+  { id: "first_step", title: "First step", desc: "Start a training run", icon: "✦",
     test: (s) => s.steps >= 1 },
-  { id: "warmup", title: "Échauffement", desc: "Atteindre 100 steps", icon: "▲",
+  { id: "warmup", title: "Warm-up", desc: "Reach 100 steps", icon: "▲",
     test: (s) => s.steps >= 100 },
-  { id: "first_sample", title: "Première vision", desc: "Générer un aperçu live", icon: "◎",
+  { id: "first_sample", title: "First vision", desc: "Generate a live preview", icon: "◎",
     test: (s) => s.samples >= 1 },
-  { id: "convergence", title: "Ça converge", desc: "Loss divisée par 2", icon: "↘",
+  { id: "convergence", title: "It converges", desc: "Loss halved", icon: "↘",
     test: (s) => s.firstLoss > 0 && s.bestLoss <= s.firstLoss / 2 },
-  { id: "sharp", title: "Identity Lock", desc: "Loss sous 0.06", icon: "◆",
+  { id: "sharp", title: "Identity Lock", desc: "Loss under 0.06", icon: "◆",
     test: (s) => s.bestLoss > 0 && s.bestLoss < 0.06 },
-  { id: "marathon", title: "Marathon", desc: "Atteindre 1000 steps", icon: "⬢",
+  { id: "marathon", title: "Marathon", desc: "Reach 1000 steps", icon: "⬢",
     test: (s) => s.steps >= 1000 },
-  { id: "finisher", title: "Forgeron", desc: "Terminer un entraînement", icon: "★",
+  { id: "finisher", title: "Smith", desc: "Finish a training run", icon: "★",
     test: (s) => s.finished },
 ];
 
@@ -45,7 +45,7 @@ export function computeXp(s: GameStats, unlockedCount: number): number {
 }
 
 function xpForLevel(level: number): number {
-  // cumul croissant, doux au début puis plus exigeant
+  // rising cumulative curve, gentle at first then steeper
   return Math.round(120 * Math.pow(level, 1.5));
 }
 

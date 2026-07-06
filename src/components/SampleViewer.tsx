@@ -68,14 +68,14 @@ export function SampleViewer({ samples }: { samples: Sample[] }) {
           <Canvas sample={latest} className="h-full w-full rounded-xl animate-pop" />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted">
-            Les aperçus apparaîtront ici
+            Previews will appear here
           </div>
         )}
       </div>
       {latest && (
         <div className="mt-2 flex items-center justify-between text-xs text-muted">
           <span>step {latest.step}</span>
-          <span>netteté {Math.round(latest.sharpness * 100)}%</span>
+          <span>sharpness {Math.round(latest.sharpness * 100)}%</span>
         </div>
       )}
       {samples.length > 1 && (

@@ -1,20 +1,20 @@
 import type { CaptionConfig, DatasetImage, TrainConfig, TrainEvent } from "../types";
 
-// Base du moteur, résolue selon le contexte :
-//  - override explicite (app desktop pointée sur un moteur distant Vast) : localStorage "soma.engineUrl"
-//  - UI web servie PAR le moteur (cloud) : même origine (http(s)://<ip>:<port>)
-//  - dev Vite (:1420) ou app Tauri : moteur sur <hostname>:8765
+// Engine base URL, resolved by context:
+//  - explicit override (desktop app pointed at a remote Vast engine): localStorage "soma.engineUrl"
+//  - web UI served BY the engine (cloud): same origin (http(s)://<ip>:<port>)
+//  - Vite dev (:1420) or Tauri app: engine on <hostname>:8765
 function computeBase(): string {
   try {
     const ov = typeof localStorage !== "undefined" ? localStorage.getItem("soma.engineUrl") : null;
     if (ov) return ov.replace(/\/+$/, "");
   } catch {
-    /* localStorage indisponible */
+    /* localStorage unavailable */
   }
   if (typeof window === "undefined" || !window.location) return "http://127.0.0.1:8765";
   const { protocol, hostname, port, host } = window.location;
-  if (protocol.startsWith("http") && port !== "1420") return `${protocol}//${host}`; // servi par le moteur
-  return `http://${hostname || "127.0.0.1"}:8765`; // dev Vite / Tauri
+  if (protocol.startsWith("http") && port !== "1420") return `${protocol}//${host}`; // served by the engine
+  return `http://${hostname || "127.0.0.1"}:8765`; // Vite dev / Tauri
 }
 
 const BASE = computeBase();
@@ -140,7 +140,7 @@ export function datasetImageUrl(path: string): string {
   return `${BASE}/api/dataset/image?path=${encodeURIComponent(path)}`;
 }
 
-// vignette réduite (grille) — bien plus légère à décoder que le plein-res
+// small thumbnail (grid) — much lighter to decode than the full-res image
 export function datasetThumbUrl(path: string, size = 384): string {
   return `${BASE}/api/dataset/thumb?path=${encodeURIComponent(path)}&size=${size}`;
 }

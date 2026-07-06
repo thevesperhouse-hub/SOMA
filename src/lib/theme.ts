@@ -1,14 +1,14 @@
-// Système de thèmes : chaque thème = un jeu complet de variables CSS (couleurs,
-// polices, arrondis, densité, effets) + variantes de disposition, piloté par
-// l'attribut data-theme sur <html>. Ajouter un thème = 1 entrée ici + 1 bloc CSS.
+// Theme system: each theme = a full set of CSS variables (colors, fonts, radii,
+// density, effects) + layout variants, driven by the data-theme attribute on <html>.
+// Adding a theme = one entry here + one CSS block.
 export type Theme = "forge" | "terminal" | "mono" | "editorial" | "brutal";
 
 export const THEMES: { id: Theme; label: string; blurb: string }[] = [
-  { id: "forge", label: "Forge", blurb: "Sobre · bleu · Inter" },
-  { id: "terminal", label: "Terminal", blurb: "Mono · phosphore · CRT" },
-  { id: "mono", label: "Mono", blurb: "Noir & blanc · clair · net" },
-  { id: "editorial", label: "Éditorial", blurb: "Crème · serif · magazine" },
-  { id: "brutal", label: "Brutalist", blurb: "Contraste · bordures · ombres dures" },
+  { id: "forge", label: "Forge", blurb: "Sober · blue · Inter" },
+  { id: "terminal", label: "Terminal", blurb: "Mono · phosphor · CRT" },
+  { id: "mono", label: "Mono", blurb: "Black & white · light · crisp" },
+  { id: "editorial", label: "Editorial", blurb: "Cream · serif · magazine" },
+  { id: "brutal", label: "Brutalist", blurb: "Contrast · borders · hard shadows" },
 ];
 
 const IDS = new Set(THEMES.map((t) => t.id));
