@@ -1,6 +1,6 @@
-"""Captioning de dataset via JoyCaption (VLM non censuré, pensé pour les
-datasets de diffusion). Chargé en 4-bit (bitsandbytes) puis déchargé
-immédiatement. Écrit un fichier <image>.txt par image.
+"""Dataset captioning via JoyCaption (uncensored VLM, designed for
+diffusion datasets). Loaded in 4-bit (bitsandbytes) then unloaded
+immediately. Writes an <image>.txt file per image.
 
 Pattern VRAM transitoire : load -> caption tout -> del + empty_cache.
 """
@@ -17,7 +17,7 @@ JOYCAPTION = "fancyfeast/llama-joycaption-beta-one-hf-llava"
 
 
 def clean_path(p):
-    """Nettoie un chemin collé : espaces + guillemets (Windows 'Copier le chemin')."""
+    """Clean a pasted path: spaces + quotes (Windows 'Copy path')."""
     return (p or "").strip().strip('"').strip("'").strip()
 
 
@@ -27,8 +27,8 @@ def _list_images(d):
 
 
 def caption_path(image_path, output_dir=""):
-    """Chemin du .txt pour une image : dans output_dir si fourni, sinon à côté
-    de l'image (recommandé : l'entraînement détecte les captions à côté)."""
+    """.txt path for an image: in output_dir if provided, otherwise next to
+    the image (recommended: training detects captions placed alongside)."""
     out_dir = clean_path(output_dir)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
@@ -55,17 +55,17 @@ class CaptionJob(threading.Thread):
             self.emit(evt("log", level="error", message=traceback.format_exc()))
 
 
-# Le modèle de captioning est LOURD (~15-24s à charger, ~6 Go VRAM). On le garde
-# EN CACHE mémoire entre les runs : plus de rechargement, plus de thrash VRAM
-# (alloc/free répété qui perturbait le compositing du navigateur = flicker).
-# Libéré par clear_model_cache() (appelé avant un entraînement pour rendre la VRAM).
+# The captioning model is HEAVY (~15-24s to load, ~6 GB VRAM). We keep it
+# CACHED in memory between runs: no reload, no VRAM thrash
+# (repeated alloc/free that disturbed browser compositing = flicker).
+# Freed by clear_model_cache() (called before a training to release the VRAM).
 _MODEL_CACHE: dict = {}
 
 
 def _get_caption_model(model_id, emit):
     cached = _MODEL_CACHE.get(model_id)
     if cached is not None:
-        emit(evt("log", level="info", message="Modèle de captioning déjà en mémoire (réutilisé)"))
+        emit(evt("log", level="info", message="Captioning model already in memory (reused)"))
         return cached
     import torch
     from transformers import AutoProcessor, BitsAndBytesConfig, LlavaForConditionalGeneration
@@ -90,7 +90,7 @@ def _get_caption_model(model_id, emit):
 
 
 def clear_model_cache():
-    """Libère la VRAM du captioner (à appeler avant un entraînement)."""
+    """Free the captioner's VRAM (call before a training)."""
     import gc
 
     _MODEL_CACHE.clear()
@@ -112,10 +112,10 @@ def run_captioning(cfg, emit, stop_event):
     images = _list_images(dataset_dir)
     if not images:
         raise RuntimeError(f"No images in {dataset_dir!r}")
-    emit(evt("log", level="info", message=f"{len(images)} image(s) à captionner"))
+    emit(evt("log", level="info", message=f"{len(images)} image(s) to caption"))
 
     model_id = cfg.model_id or JOYCAPTION
-    proc, model = _get_caption_model(model_id, emit)  # chargé 1× puis gardé en cache
+    proc, model = _get_caption_model(model_id, emit)  # loaded once then kept in cache
 
     token = (cfg.instance_token or "").strip()
     instruction = cfg.prompt or "Write a detailed description for this image."
@@ -129,10 +129,10 @@ def run_captioning(cfg, emit, stop_event):
             txt_path = caption_path(path, getattr(cfg, "output_dir", ""))
             if os.path.exists(txt_path) and not cfg.overwrite:
                 emit(evt("caption", index=i, total=len(images),
-                         file=os.path.basename(path), text="(déjà présent)", skipped=True))
+                         file=os.path.basename(path), text="(already present)", skipped=True))
                 continue
-            # event "en cours" : le hero montre l'image travaillée AVANT la génération
-            # (état "réfléchit…"), puis la caption apparaîtra dessus quand elle est prête.
+            # "in progress" event: the hero shows the worked image BEFORE generation
+            # ("thinking…" state), then the caption appears on it when ready.
             emit(evt("caption", index=i, total=len(images),
                      file=os.path.basename(path), text="", skipped=False))
             image = Image.open(path).convert("RGB")
@@ -159,8 +159,8 @@ def run_captioning(cfg, emit, stop_event):
                      file=os.path.basename(path), text=caption, skipped=False))
         emit(evt("status", state="done_caption", written=written, total=len(images)))
     finally:
-        # NE PAS décharger le modèle : il reste en cache (_MODEL_CACHE) pour les
-        # runs suivants. On ne libère que la mémoire transitoire.
+        # DO NOT unload the model: it stays cached (_MODEL_CACHE) for the
+        # following runs. We only free the transient memory.
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()

@@ -1,11 +1,11 @@
-"""Serveur sidecar : FastAPI + WebSocket. Lancé en local par l'app Tauri.
+"""Sidecar server: FastAPI + WebSocket. Run locally by the Tauri app.
 
 REST :
   GET  /api/health
   POST /api/train/start   (corps = TrainConfig)
   POST /api/train/stop
 WS :
-  /ws  -> flux d'événements d'entraînement (replay des derniers events à la
+  /ws  -> training event stream (replays the latest events on
           connexion pour qu'un client tardif voie la progression en cours).
 """
 import asyncio
@@ -43,7 +43,7 @@ class Hub:
         self.caption_job: CaptionJob | None = None
 
     def emit_threadsafe(self, event: dict):
-        """Appelé depuis le thread d'entraînement."""
+        """Called from the training thread."""
         if self.loop is not None:
             self.loop.call_soon_threadsafe(self.queue.put_nowait, event)
 
@@ -79,7 +79,7 @@ async def health():
 @app.post("/api/train/start")
 async def start(cfg: TrainConfig):
     if hub.job is not None and hub.job.is_alive():
-        return {"ok": False, "error": "Un entraînement est déjà en cours"}
+        return {"ok": False, "error": "A training is already running"}
     hub.history.clear()
     hub.job = TrainingJob(cfg, hub.emit_threadsafe)
     hub.job.start()
@@ -96,9 +96,9 @@ async def stop():
 @app.post("/api/caption/start")
 async def caption_start(cfg: CaptionConfig):
     if hub.caption_job is not None and hub.caption_job.is_alive():
-        return {"ok": False, "error": "Un captioning est déjà en cours"}
+        return {"ok": False, "error": "A captioning is already running"}
     if hub.job is not None and hub.job.is_alive():
-        return {"ok": False, "error": "Un entraînement tourne — attends la fin"}
+        return {"ok": False, "error": "A training is running — wait for it to finish"}
     hub.history.clear()  # pas de rejeu des anciens events caption
     hub.caption_job = CaptionJob(cfg, hub.emit_threadsafe)
     hub.caption_job.start()
@@ -118,7 +118,7 @@ _NON_SDXL_PAT = ("flux", "wan", "qwen", "sd3", "hidream", "kolors", "hunyuan", "
 
 def _detect_model_root() -> str:
     """Trouve le dossier `models` d'une install ComfyUI (env var puis emplacements
-    courants). Pas de glob large (lent) : liste ciblée."""
+    common ones). No broad glob (slow): a targeted list."""
     env = os.environ.get("SOMA_MODEL_ROOT", "")
     if env and os.path.isdir(env):
         return env
@@ -136,9 +136,9 @@ def _detect_model_root() -> str:
 
 
 def _scan_models(root: str, backend: str) -> list[dict]:
-    """Liste les modèles pertinents pour un BACKEND de trainer. Z-Image = DiT dans
-    diffusion_models + checkpoints marqués zit/zimage. SDXL (SDXL/Pony/Illustrious/
-    NoobAI) = checkpoints hors modèles manifestement non-SDXL (flux/wan/qwen…)."""
+    """List the models relevant to a trainer BACKEND. Z-Image = DiT in
+    diffusion_models + checkpoints tagged zit/zimage. SDXL (SDXL/Pony/Illustrious/
+    NoobAI) = checkpoints minus clearly non-SDXL models (flux/wan/qwen…)."""
     out = []
 
     def add(folder: str):
@@ -150,16 +150,16 @@ def _scan_models(root: str, backend: str) -> list[dict]:
             low = name.lower()
             is_z = any(k in low for k in _ZIMAGE_PAT)
             if backend == "zimage":
-                if is_z:  # seulement les DiT Z-Image (pas Flux/Wan/Qwen du même dossier)
+                if is_z:  # only Z-Image DiTs (not Flux/Wan/Qwen from the same folder)
                     out.append({"name": name, "path": p, "folder": folder, "zimage": is_z})
             elif backend == "flux":
-                # DiT Flux.1-dev + Krea (même archi) : "flux"/"krea" mais PAS
+                # Flux.1-dev + Krea DiT (same arch): "flux"/"krea" but NOT
                 # kontext (edit) ni flux-2/klein (autres archis)
                 if (("flux" in low or "krea" in low)
                         and not any(k in low for k in ("kontext", "flux-2", "flux2", "klein"))):
                     out.append({"name": name, "path": p, "folder": folder, "zimage": False})
             elif backend == "qwen":
-                # DiT Qwen-Image (base ou edit) — bf16 de préférence, fp8 accepté
+                # Qwen-Image DiT (base or edit) — bf16 preferred, fp8 accepted
                 if "qwen" in low and "image" in low and "vae" not in low:
                     out.append({"name": name, "path": p, "folder": folder, "zimage": False})
             elif backend == "chroma":
@@ -182,14 +182,14 @@ def _scan_models(root: str, backend: str) -> list[dict]:
 
 @app.get("/api/families")
 async def list_families():
-    """Familles de modèles disponibles (source unique côté moteur)."""
+    """Available model families (engine-side single source)."""
     return {"families": FAMILIES}
 
 
 @app.get("/api/gpu/stats")
 async def gpu_stats():
-    """Télémétrie GPU live via nvidia-smi (temp, charge, ventilo, VRAM, clock, conso).
-    Tolérant : {ok:false} si nvidia-smi indisponible."""
+    """Live GPU telemetry via nvidia-smi (temp, load, fan, VRAM, clock, power).
+    Tolerant: {ok:false} if nvidia-smi is unavailable."""
     import subprocess
 
     q = ("temperature.gpu,utilization.gpu,fan.speed,memory.used,memory.total,"
@@ -220,7 +220,7 @@ async def gpu_stats():
 
 def _read_st_metadata(path: str) -> dict:
     """Lit le __metadata__ d'un .safetensors sans charger les tenseurs (juste
-    l'en-tête JSON : 8 octets de longueur + JSON)."""
+    the JSON header: 8 length bytes + JSON)."""
     try:
         with open(path, "rb") as f:
             n = int.from_bytes(f.read(8), "little")
@@ -232,8 +232,8 @@ def _read_st_metadata(path: str) -> dict:
 
 @app.get("/api/checkpoints")
 async def list_checkpoints(dir: str = "output"):
-    """LoRA exportés (récursif), récents d'abord, avec métadonnées SOMA (archi,
-    base, steps, date) relues depuis le header safetensors quand présentes."""
+    """Exported LoRAs (recursive), most recent first, with SOMA metadata (arch,
+    base, steps, date) read back from the safetensors header when present."""
     dir = clean_path(dir) or "output"
     items = []
     if os.path.isdir(dir):
@@ -267,8 +267,8 @@ async def download(path: str):
 
 @app.get("/api/gpu")
 async def gpu_info():
-    """VRAM détectée (pour un défaut de précision intelligent). Tolérant si
-    torch/CUDA absent (mode démo, install de base)."""
+    """Detected VRAM (for a smart precision default). Tolerant if
+    torch/CUDA is missing (demo mode, base install)."""
     try:
         import torch
 
@@ -320,8 +320,8 @@ _THUMB_CACHE: dict = {}  # (path, mtime, size) -> jpeg bytes
 
 @app.get("/api/dataset/thumb")
 async def dataset_thumb(path: str, size: int = 384):
-    """Vignette réduite (JPEG) pour la grille : ~16× moins de pixels décodés que
-    le plein-res -> plus de pression mémoire navigateur, plus de flicker. Cachée."""
+    """Small thumbnail (JPEG) for the grid: ~16× fewer decoded pixels than
+    the full-res -> less browser memory pressure, less flicker. Cached."""
     path = clean_path(path)
     if not os.path.isfile(path) or not path.lower().endswith(_IMG_EXTS):
         return Response(status_code=404)
@@ -359,15 +359,15 @@ async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     hub.clients.add(ws)
     try:
-        # NE PAS rejouer tout l'historique : sur une reconnexion (fréquente quand
-        # la boucle est affamée par un job GPU), rejouer des centaines d'events
-        # provoque une rafale de re-render côté client (flicker). Le client garde
-        # son état React sur reconnexion -> on ne renvoie que le dernier STATUT.
+        # DO NOT replay the whole history: on a reconnect (frequent when
+        # the loop is starved by a GPU job), replaying hundreds of events
+        # causes a burst of client-side re-renders (flicker). The client keeps
+        # its React state on reconnect -> we only resend the last STATUS.
         last_status = next((e for e in reversed(hub.history) if e.get("type") == "status"), None)
         if last_status is not None:
             await ws.send_text(json.dumps(last_status))
         while True:
-            await ws.receive_text()  # keepalive / pings ignorés
+            await ws.receive_text()  # keepalive / pings ignored
     except WebSocketDisconnect:
         pass
     finally:
@@ -375,9 +375,9 @@ async def ws_endpoint(ws: WebSocket):
 
 
 # ------------------------------------------------------------------ UI web
-# Sert le frontend React buildé pour l'usage cloud (Vast) : ouvrir http://<ip>:8765/
-# dans un navigateur = toute l'UI, sans app locale. Monté APRÈS les routes /api et /ws
-# (elles ont priorité). Absent en dev => on ne monte rien (l'UI tourne sur Vite :1420).
+# Serves the built React frontend for cloud use (Vast): open http://<ip>:8765/
+# in a browser = the full UI, no local app. Mounted AFTER the /api and /ws routes
+# (they take priority). Absent in dev => nothing is mounted (the UI runs on Vite :1420).
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _WEB_DIR = os.environ.get("SOMA_WEB_DIR") or next(
     (d for d in (os.path.join(_HERE, "web"), os.path.join(_HERE, "..", "dist"))
@@ -391,8 +391,8 @@ if _WEB_DIR:
 if __name__ == "__main__":
     import uvicorn
 
-    # ws_ping désactivé : pendant un job GPU la boucle asyncio est affamée (GIL du
-    # thread modèle) -> le keepalive WebSocket sautait et faisait déconnecter/
+    # ws_ping disabled: during a GPU job the asyncio loop is starved (GIL of the
+    # model thread) -> the WebSocket keepalive would skip and cause disconnect/
     # reconnecter en boucle. Sans ping serveur, la connexion tient (local, TCP).
     uvicorn.run(
         app, host="127.0.0.1", port=8765, log_level="warning",
