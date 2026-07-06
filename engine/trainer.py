@@ -1,9 +1,9 @@
-"""Job d'entraînement lancé dans un thread.
+"""Training job run in a thread.
 
-- simulate=True  -> courbe de loss + samples simulés (aucune dep lourde, démo
-  immédiate du dashboard live).
-- simulate=False -> vrai entraînement LoRA SDXL (diffusers + peft), isolé dans
-  real_trainer.py pour ne charger torch que si nécessaire.
+- simulate=True  -> simulated loss curve + samples (no heavy deps, instant demo of
+  the live dashboard).
+- simulate=False -> real SDXL LoRA training (diffusers + peft), isolated in
+  real_trainer.py so torch is only loaded when needed.
 """
 import math
 import random
@@ -31,19 +31,19 @@ class TrainingJob(threading.Thread):
                 self._run_sim()
             else:
                 self._run_real()
-        except Exception as e:  # ne jamais crasher le serveur
+        except Exception as e:  # never crash the server
             self.emit(evt("status", state="error", message=str(e)))
             self.emit(evt("log", level="error", message=traceback.format_exc()))
 
     # ------------------------------------------------------------------
-    # Dispatch multi-archi : chaque architecture = son trainer enfichable.
-    # SDXL et Z-Image partagent les helpers dataset/bucketing mais ont leur
-    # propre objectif (epsilon vs flow-matching) et leur propre pipeline.
+    # Multi-arch dispatch: each architecture = its own pluggable trainer.
+    # SDXL and Z-Image share the dataset/bucketing helpers but have their own
+    # objective (epsilon vs flow-matching) and their own pipeline.
     # ------------------------------------------------------------------
     def _run_real(self):
         from families import get_family
 
-        # libère la VRAM du captioner (modèle gardé en cache) avant d'entraîner
+        # free the captioner's VRAM (model kept in cache) before training
         try:
             from captioner import clear_model_cache
 
@@ -53,8 +53,8 @@ class TrainingJob(threading.Thread):
 
         fam = get_family(getattr(self.cfg, "arch", "sdxl"))
         self.emit(evt("log", level="info",
-                      message=f"Famille: {fam['label']} (backend={fam['backend']}, "
-                              f"prédiction={fam['prediction']})"))
+                      message=f"Family: {fam['label']} (backend={fam['backend']}, "
+                              f"prediction={fam['prediction']})"))
         if fam["backend"] == "zimage":
             from zimage_trainer import run_zimage_training
 
@@ -119,14 +119,14 @@ class TrainingJob(threading.Thread):
             from hunyuan_trainer import run_hunyuan_training
 
             run_hunyuan_training(self.cfg, self.emit, self._stop_evt, family=fam)
-        else:  # backend SDXL : SDXL / Pony / Illustrious / NoobAI (eps & v-pred)
+        else:  # SDXL backend: SDXL / Pony / Illustrious / NoobAI (eps & v-pred)
             from real_trainer import run_real_training
 
             run_real_training(self.cfg, self.emit, self._stop_evt, family=fam)
 
     # ------------------------------------------------------------------
-    # Mode démo : reproduit l'allure d'un vrai run (décroissance + bruit qui
-    # diminue + LR cosine) pour valider toute l'UX sans GPU ni modèle.
+    # Demo mode: mimics the shape of a real run (decay + shrinking noise +
+    # cosine LR) to validate the whole UX without a GPU or model.
     # ------------------------------------------------------------------
     def _run_sim(self):
         cfg = self.cfg
@@ -139,7 +139,7 @@ class TrainingJob(threading.Thread):
                 self.emit(evt("status", state="stopped", step=step))
                 return
             base = floor + (loss0 - floor) * math.exp(-step / tau)
-            # bruit qui se calme à mesure que ça converge
+            # noise that settles as it converges
             jitter = random.uniform(-1, 1) * 0.014 * (0.3 + 0.7 * math.exp(-step / tau))
             loss = max(0.001, base + jitter)
             lr = cfg.learning_rate * 0.5 * (1 + math.cos(math.pi * step / cfg.max_steps))
@@ -159,7 +159,7 @@ class TrainingJob(threading.Thread):
                         "sample",
                         step=step,
                         total_steps=cfg.max_steps,
-                        placeholder=True,  # le front dessine un aperçu procédural
+                        placeholder=True,  # the front-end draws a procedural preview
                         seed=cfg.seed,
                         prompt=cfg.sample_prompt,
                         sharpness=round(step / cfg.max_steps, 3),
