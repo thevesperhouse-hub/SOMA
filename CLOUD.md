@@ -1,25 +1,25 @@
-# SOMA sur le cloud (Vast.ai) — Docker + CLI
+# SOMA on the cloud (Vast.ai) — Docker + CLI
 
-Le moteur SOMA tourne dans une image Docker GPU. Deux usages :
-- **CLI headless** : lancer un entraînement en une commande.
-- **UI web** : ouvrir toute l'interface SOMA dans un navigateur, servie par la machine cloud.
+The SOMA engine runs inside a GPU Docker image. Two ways to use it:
+- **Headless CLI**: run a training in a single command.
+- **Web UI**: open the full SOMA interface in a browser, served by the cloud machine.
 
-## 1. Build de l'image
+## 1. Build the image
 
 ```bash
-docker build -t soma:latest .          # build UI (Vite) + moteur (torch cu128)
-# GPU non-Blackwell / driver plus ancien :
+docker build -t soma:latest .          # builds the UI (Vite) + engine (torch cu128)
+# non-Blackwell GPU / older driver:
 docker build --build-arg CUDA_CHANNEL=cu124 -t soma:latest .
 ```
 
-(Ou push sur un registry / Docker Hub pour que Vast.ai la tire directement.)
+(Or push to a registry / Docker Hub so Vast.ai can pull it directly.)
 
-## 2. Sur Vast.ai
+## 2. On Vast.ai
 
-Choisir une machine GPU (VRAM selon l'archi — voir `soma archs`), image = `soma:latest`.
-Monter tes données/poids en volumes et exposer le port si tu veux l'UI.
+Pick a GPU machine (VRAM depending on the architecture — see `soma archs`), image = `soma:latest`.
+Mount your data/weights as volumes, and expose the port if you want the UI.
 
-### A. Entraînement en CLI (le plus simple)
+### A. Training via the CLI (simplest)
 
 ```bash
 docker run --gpus all \
@@ -31,12 +31,12 @@ docker run --gpus all \
     --project mychar
 ```
 
-- `--arch` : voir `docker run soma archs` (25 familles).
-- `--base` : chemin local (poids montés) **ou** repo HF (`Qwen/Qwen-Image`, `stabilityai/stable-diffusion-3.5-medium`…) — téléchargé dans `/cache/hf`.
-- `--config run.json` : tout passer par un fichier JSON (mêmes clés que `TrainConfig`).
-- Rendu terminal stylisé : barre de progression + loss + ETA en direct.
+- `--arch`: see `docker run soma archs` (25 families).
+- `--base`: local path (mounted weights) **or** a HF repo (`Qwen/Qwen-Image`, `stabilityai/stable-diffusion-3.5-medium`…) — downloaded into `/cache/hf`.
+- `--config run.json`: pass everything from a JSON file (same keys as `TrainConfig`).
+- Styled terminal output: live progress bar + loss + ETA.
 
-### B. UI web (GUI dans le navigateur)
+### B. Web UI (GUI in the browser)
 
 ```bash
 docker run --gpus all -p 8765:8765 \
@@ -44,21 +44,29 @@ docker run --gpus all -p 8765:8765 \
   soma:latest serve
 ```
 
-Puis ouvrir **`http://<ip-vast>:8765/`** → toute l'UI SOMA (thèmes, courbe de loss live,
-Dataset, XP…). L'UI parle au moteur en **même origine** (aucune config).
+Two ways to reach the UI from your PC:
 
-> Astuce sécurité : le port est public. Pour restreindre, passer par un tunnel SSH
-> (`ssh -L 8765:localhost:8765 user@vast`) et ouvrir `http://localhost:8765/`.
+**Direct (simple, public port)** — expose port 8765 on Vast, then open the address it gives you
+(`http://<vast-ip>:<mapped-port>/`). The UI talks to the engine on the **same origin** (no config,
+even if Vast maps it to a different port number).
 
-### C. App desktop locale → moteur cloud (option avancée)
+**SSH tunnel (private, nothing exposed)** — the image bundles an SSH server that **only starts if a
+public key is provided** (Vast passes `$PUBLIC_KEY` automatically when you add your key to the
+instance). From your PC:
+```bash
+ssh -L 8765:localhost:8765 root@<vast-ip> -p <vast-ssh-port>
+# then open http://localhost:8765/  (encrypted traffic, port never public)
+```
+> SSH is **opt-in**: without a key, no `sshd` runs (same behavior as before).
 
-Garder l'app SOMA en local et la pointer sur le moteur Vast : dans la console du
-navigateur/app, `localStorage.setItem("soma.engineUrl", "http://<ip-vast>:8765")`.
+### C. Local desktop app → cloud engine (advanced)
+
+Keep the SOMA app local and point it at the Vast engine: in the browser/app console,
+`localStorage.setItem("soma.engineUrl", "http://<vast-ip>:8765")`.
 
 ## Notes
 
-- **Modèles lourds (20B+)** : la quantization nf4 charge les poids en bf16 en RAM le
-  temps de quantifier (~2× la taille fp16). Prendre une machine avec assez de **RAM CPU**
-  (pas que de la VRAM), sinon OOM au chargement.
-- Cache HF monté (`/cache/hf`) → ne re-télécharge pas les gros text encoders entre runs.
-- `soma serve` sert aussi l'API (`POST /api/train/start`, WS `/ws`) pour l'automatisation.
+- **Large models (20B+)**: nf4 quantization loads the weights as bf16 in RAM while quantizing
+  (~2× the fp16 size). Pick a machine with enough **CPU RAM** (not just VRAM), or it OOMs on load.
+- Mounted HF cache (`/cache/hf`) → avoids re-downloading the large text encoders between runs.
+- `soma serve` also exposes the API (`POST /api/train/start`, WS `/ws`) for automation.

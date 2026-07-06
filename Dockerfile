@@ -1,23 +1,23 @@
-# SOMA — image d'entraînement GPU (Vast.ai / cloud). Moteur Python + CLI + UI web.
+# SOMA — GPU training image (Vast.ai / cloud). Python engine + CLI + web UI.
 # Build : docker build -t soma:latest .
 # Train : docker run --gpus all -v /data:/data -v /models:/models soma \
 #           train --arch flux --base /models/flux1-dev.safetensors --dataset /data/mychar --steps 1200 --precision nf4
-# UI web: docker run --gpus all -p 8765:8765 -v /data:/data -v /models:/models soma serve
-#         puis ouvrir http://<ip>:8765/ dans un navigateur (toute l'UI, sans app locale)
+# Web UI: docker run --gpus all -p 8765:8765 -v /data:/data -v /models:/models soma serve
+#         then open http://<ip>:8765/ in a browser (full UI, no local app)
 #
-# CUDA 12.8 (cu128) = compatible Blackwell (RTX 50xx) + Ampere/Ada/Hopper récents.
-# Override : --build-arg CUDA_CHANNEL=cu124
+# CUDA 12.8 (cu128) = works on Blackwell (RTX 50xx) + recent Ampere/Ada/Hopper.
+# Override: --build-arg CUDA_CHANNEL=cu124
 
-# ---------- Stage 1 : build de l'UI web (React/Vite) ----------
+# ---------- Stage 1: build the web UI (React/Vite) ----------
 FROM node:20-slim AS webbuild
 WORKDIR /web
 COPY package.json package-lock.json* ./
 RUN npm ci 2>/dev/null || npm install
 COPY . .
-RUN npm run build   # produit /web/dist
+RUN npm run build   # produces /web/dist
 
-# ---------- Stage 2 : moteur GPU ----------
-# Ubuntu 24.04 embarque python3.12 nativement (pas de PPA deadsnakes = build + robuste).
+# ---------- Stage 2: GPU engine ----------
+# Ubuntu 24.04 ships python3.12 natively (no deadsnakes PPA = more robust build).
 FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu24.04
 
 ARG CUDA_CHANNEL=cu128
@@ -36,17 +36,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# deps (couche cachable) : torch cu128 d'abord, puis le reste.
-# NB : on n'upgrade PAS pip (celui d'apt n'a pas de RECORD -> "Cannot uninstall pip").
+# deps (cacheable layer): torch cu128 first, then the rest.
+# NB: do NOT upgrade pip (the apt one has no RECORD file -> "Cannot uninstall pip").
 COPY engine/requirements-base.txt engine/requirements-train.txt ./
 RUN python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/${CUDA_CHANNEL} && \
     python -m pip install hf_transfer && \
     python -m pip install -r requirements-base.txt -r requirements-train.txt
 
-# code moteur + configs embarquées, + UI web buildée (stage 1)
+# SSH server (optional, for a private tunnel on Vast). Separate layer AFTER pip so the
+# large torch layer stays cached (fast rebuilds).
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-server && \
+    rm -rf /var/lib/apt/lists/* && mkdir -p /run/sshd && \
+    sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin prohibit-password/; s/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+# engine code + bundled configs, + built web UI (stage 1) + entrypoint
 COPY engine/ /app/
 COPY --from=webbuild /web/dist /app/web
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
 
-EXPOSE 8765
-ENTRYPOINT ["python", "cli.py"]
-CMD ["--help"]
+# 8765 = web UI/API ; 22 = SSH (only starts if a public key is provided)
+EXPOSE 8765 22
+ENTRYPOINT ["/docker-entrypoint.sh"]
