@@ -44,6 +44,11 @@ docker run --gpus all -p 8765:8765 \
   soma:latest serve
 ```
 
+> **Auto-serve (Vast):** with no command and no TTY (e.g. Vast's *Docker ENTRYPOINT* launch
+> mode), the image **starts the web server automatically** on `:8765` — no need to pass `serve`.
+> A real terminal (`docker run -it soma`) still opens the interactive TUI launcher. Force serve
+> anywhere with `-e SOMA_SERVE=1` (host/port via `SOMA_HOST` / `SOMA_PORT`).
+
 Two ways to reach the UI from your PC:
 
 **Direct (simple, public port)** — expose port 8765 on Vast, then open the address it gives you

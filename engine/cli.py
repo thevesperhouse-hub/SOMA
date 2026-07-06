@@ -6,7 +6,7 @@ with styled terminal output (pure ANSI, zero deps — works in a container).
     python cli.py train  --arch flux --base /models/flux1-dev.safetensors \
                          --dataset /data/mychar --steps 1200 --precision nf4
     python cli.py train  --config run.json
-    python cli.py serve  --host 0.0.0.0 --port 8765        # sert l'API + l'UI web
+    python cli.py serve  --host 0.0.0.0 --port 8765        # serves the API + web UI
     python cli.py archs
     python cli.py caption --dataset /data/mychar
 
@@ -245,7 +245,16 @@ def main(argv=None):
 
     args = p.parse_args(argv)
     if not getattr(args, "cmd", None):
-        # no subcommand -> interactive launcher (styled TUI)
+        # No subcommand:
+        #  - real terminal (docker run -it, local shell) -> interactive launcher (TUI)
+        #  - headless (container / Vast / pipe, no TTY) -> auto-start the web server, so
+        #    the cloud image "just serves" without an explicit `serve` command.
+        if not sys.stdout.isatty() or os.environ.get("SOMA_SERVE"):
+            cmd_serve(argparse.Namespace(
+                host=os.environ.get("SOMA_HOST", "0.0.0.0"),
+                port=int(os.environ.get("SOMA_PORT", "8765")),
+            ))
+            return
         try:
             from launcher import run
         except ImportError:
