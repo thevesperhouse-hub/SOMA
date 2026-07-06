@@ -1,4 +1,4 @@
-"""Vrai entraînement LoRA Stable Diffusion 1.5 — diffusers + peft (PAS kohya).
+"""Real LoRA training for Stable Diffusion 1.5 — diffusers + peft (PAS kohya).
 
 SD1.5 = UNet epsilon (comme SDXL) MAIS **un seul text encoder** (CLIP ViT-L, dim 768),
 **pas d'add_time_ids ni de pooled** (≠ SDXL). Résolution native 512. On réutilise les
@@ -13,7 +13,7 @@ import time
 
 from captioner import clean_path
 from events import evt
-# helpers génériques partagés avec le trainer SDXL
+# generic helpers shared with the SDXL trainer
 from real_trainer import (
     _buckets_for_resolution, _export_comfyui_lora, _list_dataset, _load_bucketed,
 )
@@ -43,7 +43,7 @@ def run_sd15_training(cfg, emit, stop_event, family=None):
     is_vpred = prediction == "v_prediction"
 
     base_model = clean_path(cfg.base_model)
-    emit(evt("log", level="info", message=f"Chargement {base_model} sur {device}…"))
+    emit(evt("log", level="info", message=f"Loading {base_model} on {device}…"))
     if base_model.lower().endswith((".safetensors", ".ckpt")) and os.path.isfile(base_model):
         pipe = StableDiffusionPipeline.from_single_file(base_model, torch_dtype=dtype, safety_checker=None)
     else:
@@ -56,7 +56,7 @@ def run_sd15_training(cfg, emit, stop_event, family=None):
     if zsnr:
         sched_kwargs["rescale_betas_zero_snr"] = True
     noise_sched = DDPMScheduler.from_config(pipe.scheduler.config, **sched_kwargs)
-    emit(evt("log", level="info", message=f"Objectif: {prediction}{' + zsnr' if zsnr else ''}"))
+    emit(evt("log", level="info", message=f"Objective: {prediction}{' + zsnr' if zsnr else ''}"))
 
     for m in (vae, te, unet):
         m.requires_grad_(False)
@@ -84,8 +84,8 @@ def run_sd15_training(cfg, emit, stop_event, family=None):
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
-        raise RuntimeError(f"Aucune image trouvée dans {dataset_dir!r}")
-    emit(evt("log", level="info", message=f"{len(data)} image(s) dans le dataset"))
+        raise RuntimeError(f"No images found in {dataset_dir!r}")
+    emit(evt("log", level="info", message=f"{len(data)} image(s) in the dataset"))
 
     buckets = _buckets_for_resolution(cfg.resolution)
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])
@@ -164,7 +164,7 @@ def _sample(pipe, unet, cfg, step, emit, device):
                  image="data:image/png;base64," + b64, prompt=cfg.sample_prompt,
                  sharpness=round(step / cfg.max_steps, 3)))
     except Exception as e:
-        emit(evt("log", level="warn", message=f"sample échoué: {e}"))
+        emit(evt("log", level="warn", message=f"sample failed: {e}"))
     finally:
         pipe.vae.to(dtype=vae_dtype)
         unet.train()

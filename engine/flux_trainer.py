@@ -1,4 +1,4 @@
-"""Vrai entraînement LoRA Flux.1-dev — diffusers + peft, QLoRA nf4 (PAS Ostris).
+"""Real LoRA training for Flux.1-dev — diffusers + peft, QLoRA nf4 (PAS Ostris).
 
 Flux = MMDiT 12B, objectif flow-matching. Sur 16 Go : le transformer bf16 fait
 23,8 Go -> on le QUANTIFIE en nf4 (~6,8 Go) + gradient checkpointing + on cache
@@ -10,7 +10,7 @@ Configs : DiT embarqué (model_configs/flux_transformer), VAE via repo Z-Image (
 Flux AE, non gated), CLIP `openai/clip-vit-large-patch14`, T5 `google/t5-v1_1-xxl`
 (publics, quelques Mo). API vérifiée par lecture de pipeline_flux.py + smoke test.
 
-Objectif (rectified flow) : x1 = (vae.encode-shift)*scaling PACKÉ 2×2 (64 canaux) ;
+Objectif (rectified flow) : x1 = (vae.encode-shift)*scaling PACKÉ 2×2 (64 channels) ;
 x0 ~ N(0,1) ; sigma logit-normal ; noisy = (1-sigma)*x1 + sigma*x0 ; timestep modèle
 = sigma ; guidance fixe (dev = guidance_embeds) ; CIBLE = x0 - x1 (Flux ne négate pas).
 """
@@ -26,7 +26,7 @@ from events import evt
 from real_trainer import _buckets_for_resolution, _list_dataset  # noqa: F401 (helpers génériques)
 
 _CFG_DIR = os.path.join(os.path.dirname(__file__), "model_configs", "flux_transformer")
-_VAE_CONFIG_REPO = "Tongyi-MAI/Z-Image-Turbo"  # même Flux AE 16 canaux, repo NON gated
+_VAE_CONFIG_REPO = "Tongyi-MAI/Z-Image-Turbo"  # même Flux AE 16 channels, repo NON gated
 _CLIP_REPO = "openai/clip-vit-large-patch14"
 _T5_REPO = "google/t5-v1_1-xxl"
 _GUIDANCE = 1.0  # Flux.1-dev est guidance-distillé -> valeur fixe à l'entraînement

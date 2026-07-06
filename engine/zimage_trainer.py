@@ -1,7 +1,7 @@
-"""Vrai entraînement LoRA Z-Image Turbo — diffusers ZImagePipeline + peft (PAS Ostris).
+"""Real LoRA training for Z-Image Turbo — diffusers ZImagePipeline + peft (PAS Ostris).
 
 Z-Image = DiT single-stream 6B, objectif flow-matching (rectified flow), pas epsilon.
-Composants : VAE (AutoencoderKL, latents 16 canaux avec shift_factor), text encoder
+Composants : VAE (AutoencoderKL, latents 16 channels avec shift_factor), text encoder
 Qwen (chat template, on prend hidden_states[-2], dim 2560), transformer 6B.
 
 ⚠️ Contrainte 16 Go : impossible de tenir VAE + Qwen + transformer 6B EN MÊME TEMPS
@@ -103,8 +103,8 @@ def _build_pipeline_from_files(dit_path, vae_path, te_path, dtype, emit, need_te
         transformer = ZImageTransformer2DModel.from_single_file(dit_path, torch_dtype=dtype)
 
     emit(evt("log", level="info", message=f"VAE (Flux AE): {os.path.basename(vae_path)}"))
-    # ⚠️ sans config explicite, from_single_file instancie un VAE SD 4 canaux ->
-    # mismatch (le VAE Z-Image/Flux fait 16 canaux). On force la config du repo.
+    # ⚠️ sans config explicite, from_single_file instancie un VAE SD 4 channels ->
+    # mismatch (le VAE Z-Image/Flux fait 16 channels). On force la config du repo.
     vae = AutoencoderKL.from_single_file(
         vae_path, config=ZIMAGE_DEFAULT, subfolder="vae", torch_dtype=dtype
     )
@@ -265,8 +265,8 @@ def run_zimage_training(cfg, emit, stop_event):
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
-        raise RuntimeError(f"Aucune image trouvée dans {dataset_dir!r}")
-    emit(evt("log", level="info", message=f"{len(data)} image(s) dans le dataset"))
+        raise RuntimeError(f"No images found in {dataset_dir!r}")
+    emit(evt("log", level="info", message=f"{len(data)} image(s) in the dataset"))
 
     buckets = _buckets_for_resolution(cfg.resolution)
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])  # -> [-1, 1]
@@ -438,7 +438,7 @@ def _sample(pipe, transformer, sample_emb, cfg, step, emit, device, dtype):
                 sharpness=round(step / cfg.max_steps, 3))
         )
     except Exception as e:
-        emit(evt("log", level="warn", message=f"sample échoué: {e}"))
+        emit(evt("log", level="warn", message=f"sample failed: {e}"))
     finally:
         pipe.vae.to("cpu")
         transformer.train()

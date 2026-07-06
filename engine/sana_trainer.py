@@ -1,12 +1,12 @@
-"""Vrai entraînement LoRA Sana — diffusers + peft.
+"""Real LoRA training for Sana — diffusers + peft.
 
 Sana = DiT flow-matching linéaire, texte **Gemma-2**, VAE **AutoencoderDC** (compression
-32×, latent 32 canaux, déterministe). Distribué en repo diffusers → from_pretrained.
-base_model = repo HF (défaut Efficient-Large-Model/Sana_1600M_1024px_diffusers) ou dossier local.
+32×, latent 32 channels, deterministic). Distributed as a diffusers repo → from_pretrained.
+base_model = HF repo (default Efficient-Large-Model/Sana_1600M_1024px_diffusers) or a local folder.
 
-Vérifié (pipeline_sana.py / sana_transformer.py) : texte = `text_encoder(ids, mask)[0]`
-(+mask) ; VAE DC-AE : x1 = encode(px) * scaling_factor (déterministe) ; flow STANDARD
-(pas de négation) → timestep = sigma*1000*timestep_scale, CIBLE = x0 - x1 ; forward =
+Verified (pipeline_sana.py / sana_transformer.py) : texte = `text_encoder(ids, mask)[0]`
+(+mask) ; VAE DC-AE : x1 = encode(px) * scaling_factor (deterministic) ; flow STANDARD
+(no negation) → timestep = sigma*1000*timestep_scale, CIBLE = x0 - x1 ; forward =
 transformer(hidden_states, encoder_hidden_states, encoder_attention_mask, timestep).
 """
 import gc
@@ -64,7 +64,7 @@ def run_sana_training(cfg, emit, stop_event, family=None):
             px = norm(_load_square(path, res)).unsqueeze(0).to(device, torch.float32)
             enc = vae.encode(px)
             lat = enc.latent if hasattr(enc, "latent") else enc[0]
-            x1 = lat * scaling  # [1,32,h,w] (déterministe)
+            x1 = lat * scaling  # [1,32,h,w] (deterministic)
             latents_cache.append((x1.squeeze(0).to("cpu", dtype), caption))
     del vae
     gc.collect(); torch.cuda.empty_cache()
@@ -134,7 +134,7 @@ def run_sana_training(cfg, emit, stop_event, family=None):
                 hidden_states=noisy, encoder_hidden_states=emb,
                 encoder_attention_mask=mask, timestep=tstep, return_dict=False,
             )[0]
-            if pred.shape[1] == 2 * x1.shape[1]:  # learned sigma éventuel
+            if pred.shape[1] == 2 * x1.shape[1]:  # possible learned sigma
                 pred = pred[:, : x1.shape[1]]
             target = x0 - x1  # standard flow: target = noise - data
             loss = torch.nn.functional.mse_loss(pred.float(), target.float())

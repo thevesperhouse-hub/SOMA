@@ -1,10 +1,10 @@
-"""Vrai entraînement LoRA Ovis-Image — diffusers + peft, QLoRA nf4.
+"""Real LoRA training for Ovis-Image — diffusers + peft, QLoRA nf4.
 
-Ovis-Image = archi Flux (packed 2×2 → 64 canaux, VAE KL 16ch, ids 2D) MAIS texte encodé
-par **Qwen3** (chat template) et **sans guidance**. Distribué en repo diffusers →
+Ovis-Image = archi Flux (packed 2×2 → 64 channels, VAE KL 16ch, ids 2D) MAIS texte encodé
+par **Qwen3** (chat template) et **sans guidance**. Distributed as a diffusers repo →
 from_pretrained(subfolder). base_model = repo/dossier (obligatoire, pas de défaut fiable).
 
-Vérifié (pipeline_ovis_image.py) : message chat = system_prompt + caption ; embeds =
+Verified (pipeline_ovis_image.py) : message chat = system_prompt + caption ; embeds =
 `Qwen3(ids, mask).last_hidden_state * mask` puis on JETTE les 28 premiers tokens (préfixe) ;
 text_ids = zeros[seq,3] ; flow standard → timestep = sigma (le pipeline passe /1000),
 CIBLE = x0 - x1 ; forward = transformer(hidden_states[B,seq,64], timestep, encoder_hidden_states,

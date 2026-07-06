@@ -1,4 +1,4 @@
-"""Vrai entraînement LoRA SDXL — diffusers + peft (PAS kohya).
+"""Real LoRA training for SDXL — diffusers + peft (PAS kohya).
 
 Isolé pour ne charger torch/diffusers que quand simulate=False. Loop volontairement
 compacte et lisible : c'est NOTRE moteur, pas un wrapper. À affiner au premier vrai
@@ -118,7 +118,7 @@ def run_real_training(cfg, emit, stop_event, family=None):
     is_vpred = prediction == "v_prediction"
 
     base_model = clean_path(cfg.base_model)
-    emit(evt("log", level="info", message=f"Chargement {base_model} sur {device}…"))
+    emit(evt("log", level="info", message=f"Loading {base_model} on {device}…"))
     # Checkpoint local (.safetensors/.ckpt) -> from_single_file ; sinon repo HF.
     if base_model.lower().endswith((".safetensors", ".ckpt")) and os.path.isfile(base_model):
         pipe = StableDiffusionXLPipeline.from_single_file(base_model, torch_dtype=dtype)
@@ -144,7 +144,7 @@ def run_real_training(cfg, emit, stop_event, family=None):
         except Exception as e:
             emit(evt("log", level="warn", message=f"sampler v-pred non appliqué: {e}"))
     emit(evt("log", level="info",
-             message=f"Objectif: {prediction}{' + zsnr' if zsnr else ''}"))
+             message=f"Objective: {prediction}{' + zsnr' if zsnr else ''}"))
 
     for m in (vae, te1, te2, unet):
         m.requires_grad_(False)
@@ -177,8 +177,8 @@ def run_real_training(cfg, emit, stop_event, family=None):
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
-        raise RuntimeError(f"Aucune image trouvée dans {dataset_dir!r}")
-    emit(evt("log", level="info", message=f"{len(data)} image(s) dans le dataset"))
+        raise RuntimeError(f"No images found in {dataset_dir!r}")
+    emit(evt("log", level="info", message=f"{len(data)} image(s) in the dataset"))
 
     buckets = _buckets_for_resolution(cfg.resolution)
     norm = T.Compose([T.ToTensor(), T.Normalize([0.5], [0.5])])
@@ -276,7 +276,7 @@ def _sample(pipe, unet, cfg, step, emit, device):
                 sharpness=round(step / cfg.max_steps, 3))
         )
     except Exception as e:
-        emit(evt("log", level="warn", message=f"sample échoué: {e}"))
+        emit(evt("log", level="warn", message=f"sample failed: {e}"))
     finally:
         pipe.vae.to(dtype=vae_dtype)
         unet.train()

@@ -1,10 +1,10 @@
-"""Vrai entraînement LoRA Bria (BRIA-3.x) — diffusers + peft, QLoRA nf4.
+"""Real LoRA training for Bria (BRIA-3.x) — diffusers + peft, QLoRA nf4.
 
-Bria = archi Flux (double+single stream, latents packés 2×2 → 64 canaux, VAE KL 16ch)
+Bria = archi Flux (double+single stream, latents packés 2×2 → 64 channels, VAE KL 16ch)
 mais **T5-only** (pas de CLIP/pooled) et **sans guidance** (pas distillé). Distribué en
-repo diffusers → from_pretrained(subfolder). base_model défaut briaai/BRIA-3.2 (gated).
+repo diffusers → from_pretrained(subfolder). base_model default briaai/BRIA-3.2 (gated).
 
-Vérifié (pipeline_bria.py / transformer_bria.py) : forward = transformer(hidden_states
+Verified (pipeline_bria.py / transformer_bria.py) : forward = transformer(hidden_states
 [B,seq,64], timestep, encoder_hidden_states=T5[B,seq,4096], txt_ids[seq,3], img_ids[seq,3])
 — PAS de pooled/guidance/mask. Flow standard : timestep = sigma*1000, CIBLE = x0 - x1.
 """

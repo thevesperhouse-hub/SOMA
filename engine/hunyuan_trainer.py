@@ -1,11 +1,11 @@
-"""Vrai entraînement LoRA HunyuanImage — diffusers + peft, QLoRA nf4.
+"""Real LoRA training for HunyuanImage — diffusers + peft, QLoRA nf4.
 
 HunyuanImage = DiT flow-matching (~17B), texte principal **Qwen2.5-VL** (+ ByT5 pour le
 rendu de texte entre guillemets — IGNORÉ ici, inutile pour une LoRA d'identité), VAE
-**AutoencoderKLHunyuanImage** (compression 32×, 64 canaux latents, latents 4D unpackeds,
-in=64). Repo diffusers → from_pretrained(subfolder). base_model défaut tencent/HunyuanImage-2.1.
+**AutoencoderKLHunyuanImage** (compression 32×, 64 channels latents, latents 4D unpackeds,
+in=64). Repo diffusers → from_pretrained(subfolder). base_model default tencent/HunyuanImage-2.1.
 
-Vérifié (pipeline_hunyuanimage.py / transformer_hunyuanimage.py) : Qwen2.5-VL avec gabarit
+Verified (pipeline_hunyuanimage.py / transformer_hunyuanimage.py) : Qwen2.5-VL avec gabarit
 système + drop 34 tokens + `hidden_states[-3]` (skip_layer=2) + mask ; use_meanflow=False →
 `timestep_r=None` ; guidance_embeds=False → `guidance=None` ; glyph off → `encoder_hidden_states_2
 =None`. Flow standard : timestep = sigma*1000, CIBLE = x0 - x1. forward = transformer(

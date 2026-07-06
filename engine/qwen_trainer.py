@@ -1,4 +1,4 @@
-"""Vrai entraînement LoRA Qwen-Image — diffusers + peft, QLoRA nf4 (PAS kohya).
+"""Real LoRA training for Qwen-Image — diffusers + peft, QLoRA nf4 (PAS kohya).
 
 Qwen-Image = MMDiT ~20B, objectif flow-matching, texte encodé par Qwen2.5-VL-7B.
 Sur 16 Go : DiT bf16 (~40 Go) -> QUANTIFIÉ en nf4 + gradient checkpointing + on

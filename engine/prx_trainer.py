@@ -1,14 +1,14 @@
-"""Vrai entraînement LoRA PRX (Photoroom/prxpixel-t2i) — diffusers + peft.
+"""Real LoRA training for PRX (Photoroom/prxpixel-t2i) — diffusers + peft.
 
 PRX = DiT flow-matching compact (depth 16, hidden 1792, in_channels 16), texte encodé
-par un **T5Gemma encoder** (context_in_dim 2304), VAE AutoencoderKL 16 canaux. Distribué
+par un **T5Gemma encoder** (context_in_dim 2304), VAE AutoencoderKL 16 channels. Distribué
 en **repo diffusers** (pas un single-file ComfyUI) → on charge les composants via
-from_pretrained(subfolder). base_model = repo HF (défaut Photoroom/prxpixel-t2i) ou dossier
+from_pretrained(subfolder). base_model = HF repo (default Photoroom/prxpixel-t2i) ou dossier
 diffusers local.
 
 API vérifiée (pipeline_prx.py / transformer_prx.py) : latents **4D unpackeds** [B,16,H,W]
 (patchify interne, patch_size 2) ; texte = `text_encoder(ids, mask, output_hidden_states)
-["last_hidden_state"]` + mask ; flow STANDARD (pas de négation) → timestep = **sigma**,
+["last_hidden_state"]` + mask ; flow STANDARD (no negation) → timestep = **sigma**,
 CIBLE = **x0 - x1** ; forward = transformer(hidden_states, timestep=sigma,
 encoder_hidden_states, attention_mask).
 """

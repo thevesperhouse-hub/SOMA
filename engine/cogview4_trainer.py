@@ -1,11 +1,11 @@
-"""Vrai entraînement LoRA CogView4 — diffusers + peft, QLoRA nf4.
+"""Real LoRA training for CogView4 — diffusers + peft, QLoRA nf4.
 
 CogView4 = DiT flow-matching, texte **GLM-4-9B** (`hidden_states[-2]`), VAE AutoencoderKL
-16 canaux, + micro-conditionnement SDXL (original_size / target_size / crop_coords).
+16 channels, + micro-conditionnement SDXL (original_size / target_size / crop_coords).
 Encoder 9B → chargé en nf4 pour tenir la VRAM pendant le pré-calcul, puis déchargé.
-Repo diffusers → from_pretrained(subfolder). base_model défaut THUDM/CogView4-6B.
+Repo diffusers → from_pretrained(subfolder). base_model default THUDM/CogView4-6B.
 
-Vérifié (pipeline_cogview4.py) : latents 4D (in=16, patch 2) ; flow STANDARD → cible
+Verified (pipeline_cogview4.py) : latents 4D (in=16, patch 2) ; flow STANDARD → cible
 x0 - x1, timestep = sigma*1000 ; forward = transformer(hidden_states, encoder_hidden_states,
 timestep, original_size, target_size, crop_coords).
 """

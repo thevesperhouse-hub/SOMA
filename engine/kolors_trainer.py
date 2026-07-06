@@ -1,10 +1,10 @@
-"""Vrai entraînement LoRA Kolors — diffusers + peft.
+"""Real LoRA training for Kolors — diffusers + peft.
 
 Kolors = UNet **SDXL** (epsilon, add_time_ids) mais texte encodé par **ChatGLM3-6B**
-(au lieu du double CLIP). VAE SDXL 4 canaux. Distribué en repo diffusers →
-from_pretrained(subfolder). base_model défaut Kwai-Kolors/Kolors-diffusers.
+(au lieu du double CLIP). VAE SDXL 4 channels. Distributed as a diffusers repo →
+from_pretrained(subfolder). base_model default Kwai-Kolors/Kolors-diffusers.
 
-Vérifié (pipeline_kolors.py) : ChatGLM(ids, mask, position_ids, output_hidden_states) →
+Verified (pipeline_kolors.py) : ChatGLM(ids, mask, position_ids, output_hidden_states) →
 encoder_hidden_states = `hidden_states[-2].permute(1,0,2)` ; pooled = `hidden_states[-1][-1,:,:]`.
 UNet forward = unet(noisy, ts, encoder_hidden_states, added_cond_kwargs={text_embeds:pooled,
 time_ids:add_time_ids}). Entraînement DDPM epsilon : ts~U[0,1000], cible = bruit.

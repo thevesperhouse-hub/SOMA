@@ -1,7 +1,7 @@
-"""Vrai entraînement LoRA Lumina2 (Alpha-VLLM/Lumina-Image-2.0) — diffusers + peft.
+"""Real LoRA training for Lumina2 (Alpha-VLLM/Lumina-Image-2.0) — diffusers + peft.
 
 Lumina2 = DiT flow-matching, texte encodé par **Gemma-2** (pas T5/CLIP), VAE = Flux AE
-16 canaux. Latents NON packés (le DiT patchifie en interne, patch_size 2, in_channels 16).
+16 channels. Latents NON packés (le DiT patchifie en interne, patch_size 2, in_channels 16).
 
 Convention flow (vérifiée dans pipeline_lumina2.py) — IDENTIQUE à Z-Image : la pipeline
 NÈGE la sortie du transformer avant le scheduler (`noise_pred = -noise_pred`), et Lumina

@@ -1,9 +1,9 @@
-"""Vrai entraînement LoRA AuraFlow — diffusers + peft.
+"""Real LoRA training for AuraFlow — diffusers + peft.
 
-AuraFlow = MMDiT flow-matching, texte **UMT5** (pile-t5), VAE AutoencoderKL 4 canaux.
-Distribué en repo diffusers → from_pretrained(subfolder). base_model défaut fal/AuraFlow-v0.3.
+AuraFlow = MMDiT flow-matching, texte **UMT5** (pile-t5), VAE AutoencoderKL 4 channels.
+Distributed as a diffusers repo → from_pretrained(subfolder). base_model default fal/AuraFlow-v0.3.
 
-Vérifié (pipeline_aura_flow.py) : prompt_embeds = `text_encoder(ids, mask)[0] * mask`
+Verified (pipeline_aura_flow.py) : prompt_embeds = `text_encoder(ids, mask)[0] * mask`
 (padding mis à zéro, PAS de mask passé au transformer) ; latents 4D unpackeds (in=4,
 patch 2) ; flow STANDARD → timestep = sigma, CIBLE = x0 - x1 ; forward =
 transformer(hidden_states[B,4,H,W], encoder_hidden_states, timestep).

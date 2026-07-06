@@ -1,7 +1,7 @@
-"""Vrai entraînement LoRA Chroma — diffusers + peft, QLoRA nf4.
+"""Real LoRA training for Chroma — diffusers + peft, QLoRA nf4.
 
 Chroma (lodestones/Chroma1-Base) = archi Flux ÉLAGUÉE et DÉ-DISTILLÉE : même MMDiT
-(double + single stream, latents packés 2×2 → 64 canaux, VAE Flux AE 16 canaux) MAIS
+(double + single stream, latents packés 2×2 → 64 channels, VAE Flux AE 16 channels) MAIS
 **sans CLIP** (texte = T5-XXL seul, avec attention_mask) et **sans guidance** (le
 vecteur de modulation vient d'un petit "approximator" interne, pas d'un guidance embed).
 
