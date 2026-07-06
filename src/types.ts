@@ -11,6 +11,9 @@ export interface TrainConfig {
   learning_rate: number;
   max_steps: number;
   batch_size: number;
+  lr_warmup_ratio: number;
+  min_snr_gamma: number;
+  caption_dropout: number;
   gradient_checkpointing: boolean;
   mixed_precision: "bf16" | "fp16" | "fp32";
   precision: string; // bf16 | int8 | nf4 (weight quantization)

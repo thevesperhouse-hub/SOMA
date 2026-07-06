@@ -340,6 +340,32 @@ export function ConfigPanel({
             />
           </Field>
         </div>
+        <div className="grid grid-cols-3 gap-3">
+          <Field label={t("cfg.minSnr")} hint={t("cfg.minSnrHint")}>
+            <Input
+              type="number"
+              step="0.5"
+              value={cfg.min_snr_gamma}
+              onChange={(e) => set("min_snr_gamma", Number(e.target.value))}
+            />
+          </Field>
+          <Field label={t("cfg.capDropout")} hint={t("cfg.capDropoutHint")}>
+            <Input
+              type="number"
+              step="0.05"
+              value={cfg.caption_dropout}
+              onChange={(e) => set("caption_dropout", Number(e.target.value))}
+            />
+          </Field>
+          <Field label={t("cfg.warmup")} hint={t("cfg.warmupHint")}>
+            <Input
+              type="number"
+              step="0.01"
+              value={cfg.lr_warmup_ratio}
+              onChange={(e) => set("lr_warmup_ratio", Number(e.target.value))}
+            />
+          </Field>
+        </div>
         <Field
           label={t("cfg.samplePrompt")}
           hint={fam?.prompt_hint ? fam.prompt_hint.replace(/<token>/g, cfg.instance_token || "ohwx") : undefined}
