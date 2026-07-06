@@ -21,10 +21,15 @@ class TrainConfig(BaseModel):
     # LoRA hyperparameters
     resolution: int = 1024
     rank: int = 16
-    alpha: int = 16
+    alpha: int = 8          # alpha < rank (scale 0.5) = gentler, less base-model frying
     learning_rate: float = 1e-4
     max_steps: int = 1200
     batch_size: int = 1
+
+    # Anti-overfitting / anti-forgetting guards (see train_utils.py)
+    lr_warmup_ratio: float = 0.05   # linear warmup then cosine decay to 5% of base LR
+    min_snr_gamma: float = 5.0      # min-SNR-gamma loss weighting (epsilon families); <=0 disables
+    caption_dropout: float = 0.1    # fraction of steps trained unconditionally
 
     # Memory / perf (designed for 16 GB)
     gradient_checkpointing: bool = True

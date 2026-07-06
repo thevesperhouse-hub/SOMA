@@ -1,4 +1,4 @@
-"""Real LoRA training for SDXL — diffusers + peft (PAS kohya).
+"""Real LoRA training for SDXL — diffusers + peft (NOT kohya).
 
 Isolated so torch/diffusers only load when simulate=False. The loop is deliberately
 compact and readable: it's OUR engine, not a wrapper. To be refined on the first real
@@ -14,6 +14,7 @@ import time
 from captioner import clean_path
 from events import evt
 from families import soma_meta
+from train_utils import make_lr_scheduler, maybe_drop, min_snr_weights
 
 _EXTS = (".png", ".jpg", ".jpeg", ".webp", ".bmp")
 
@@ -174,6 +175,10 @@ def run_real_training(cfg, emit, stop_event, family=None):
         opt = torch.optim.AdamW(params, lr=cfg.learning_rate)
         emit(evt("log", level="info", message="Optimizer: AdamW (fallback)"))
 
+    sched = make_lr_scheduler(opt, cfg.max_steps, getattr(cfg, "lr_warmup_ratio", 0.05))
+    snr_gamma = getattr(cfg, "min_snr_gamma", 5.0)
+    cap_drop = getattr(cfg, "caption_dropout", 0.0)
+
     dataset_dir = clean_path(cfg.dataset_dir)
     data = _list_dataset(dataset_dir)
     if not data:
@@ -186,6 +191,7 @@ def run_real_training(cfg, emit, stop_event, family=None):
 
     def encode_prompt(caption):
         cap = caption or f"a photo of {cfg.instance_token} person"
+        cap = maybe_drop(cap, cap_drop)  # caption dropout -> unconditional prompt
         ids1 = tok1(cap, padding="max_length", max_length=tok1.model_max_length,
                     truncation=True, return_tensors="pt").input_ids.to(device)
         ids2 = tok2(cap, padding="max_length", max_length=tok2.model_max_length,
@@ -223,16 +229,21 @@ def run_real_training(cfg, emit, stop_event, family=None):
             added = {"text_embeds": pooled, "time_ids": add_time_ids}
             pred = unet(noisy, ts, encoder_hidden_states=emb,
                         added_cond_kwargs=added).sample
-            # Cible : velocity (v-pred) ou bruit (epsilon)
+            # Target: velocity (v-pred) or noise (epsilon)
             target = noise_sched.get_velocity(latents, noise, ts) if is_vpred else noise
-            loss = torch.nn.functional.mse_loss(pred.float(), target.float())
+            per = torch.nn.functional.mse_loss(
+                pred.float(), target.float(), reduction="none"
+            ).mean(dim=[1, 2, 3])
+            w = min_snr_weights(noise_sched, ts, snr_gamma, prediction).to(per.device)
+            loss = (per * w).mean()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(params, 1.0)
             opt.step()
             opt.zero_grad()
+            sched.step()
             emit(
                 evt("step", step=step, total_steps=cfg.max_steps,
-                    loss=round(loss.item(), 4), lr=cfg.learning_rate,
+                    loss=round(loss.item(), 4), lr=sched.get_last_lr()[0],
                     secs=round(time.time() - t0, 1))
             )
             if step % cfg.sample_every == 0 or step == cfg.max_steps:
