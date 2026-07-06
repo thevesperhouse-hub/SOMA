@@ -1,0 +1,8 @@
+# Sponsor button for the SOMA repo.
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+github: thevesperhouse-hub
+
+# Optionnel — plateformes sans approbation, à ajouter si tu veux :
+# ko_fi: <user>
+# buy_me_a_coffee: <user>
+# custom: ["https://..."]
