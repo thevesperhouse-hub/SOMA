@@ -65,3 +65,8 @@ class CaptionSave(BaseModel):
     path: str   # IMAGE path; the .txt is written next to it (or in output_dir)
     text: str
     output_dir: str = ""
+
+
+class ModelFetch(BaseModel):
+    url: str            # direct link (HF resolve/… , Civitai api/download/… , any .safetensors)
+    dest: str = ""      # target folder; empty => <SOMA_MODEL_ROOT>/checkpoints

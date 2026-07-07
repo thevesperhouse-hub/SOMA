@@ -1,13 +1,23 @@
 import { useEffect, useState } from "react";
 import type { TrainConfig, TrainState } from "../types";
-import { datasetList, gpuInfo, listFamilies, listModels, type Family, type ModelEntry } from "../lib/api";
+import {
+  datasetList, gpuInfo, listFamilies, listModels, startModelFetch, stopModelFetch,
+  type Family, type ModelEntry,
+} from "../lib/api";
 import type { T } from "../lib/i18n";
-import { Button, Card, CardHeader, Field, Input } from "./ui";
+import { Button, Card, CardHeader, Field, Input, Progress } from "./ui";
 import { cn } from "../lib/utils";
+
+export interface ModelFetch {
+  state: "idle" | "downloading" | "done" | "error" | "stopped";
+  percent: number;
+  message?: string;
+}
 
 export function ConfigPanel({
   cfg,
   setCfg,
+  modelFetch,
   state,
   connected,
   onStart,
@@ -16,6 +26,7 @@ export function ConfigPanel({
 }: {
   cfg: TrainConfig;
   setCfg: (c: TrainConfig) => void;
+  modelFetch: ModelFetch;
   state: TrainState;
   connected: boolean;
   onStart: () => void;
@@ -24,6 +35,7 @@ export function ConfigPanel({
 }) {
   const running = state === "training" || state === "sampling" || state === "starting";
   const set = <K extends keyof TrainConfig>(k: K, v: TrainConfig[K]) => setCfg({ ...cfg, [k]: v });
+  const [fetchUrl, setFetchUrl] = useState("");
 
   // Model families (engine-side registry): populate the selector + the defaults.
   const [families, setFamilies] = useState<Family[]>([]);
@@ -268,6 +280,38 @@ export function ConfigPanel({
               onChange={(e) => set("base_model", e.target.value)}
             />
           </Field>
+        )}
+        <Field label={t("cfg.fetchUrl")} hint={t("cfg.fetchUrlHint")}>
+          <div className="flex gap-2">
+            <Input
+              value={fetchUrl}
+              placeholder="https://huggingface.co/.../resolve/main/model.safetensors"
+              onChange={(e) => setFetchUrl(e.target.value)}
+            />
+            {modelFetch.state === "downloading" ? (
+              <Button variant="danger" onClick={() => stopModelFetch()}>{t("cfg.fetchStop")}</Button>
+            ) : (
+              <Button
+                variant="ghost"
+                onClick={() => fetchUrl.trim() && startModelFetch(fetchUrl.trim())}
+                disabled={!fetchUrl.trim()}
+              >
+                {t("cfg.fetchBtn")}
+              </Button>
+            )}
+          </div>
+        </Field>
+        {modelFetch.state === "downloading" && (
+          <div className="flex items-center gap-2 text-xs text-accent">
+            <span className="shrink-0">{t("cfg.fetchDownloading")} {modelFetch.percent}%</span>
+            <div className="flex-1"><Progress value={modelFetch.percent / 100} /></div>
+          </div>
+        )}
+        {modelFetch.state === "done" && (
+          <div className="text-xs text-muted">✓ {t("cfg.fetchDone")}</div>
+        )}
+        {modelFetch.state === "error" && (
+          <div className="text-xs text-muted">✗ {t("cfg.fetchError")} {modelFetch.message}</div>
         )}
         <Field label={t("cfg.dataset")} hint={t("cfg.datasetHint")}>
           <div className="flex gap-2">

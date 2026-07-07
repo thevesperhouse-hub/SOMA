@@ -105,13 +105,25 @@ export interface CaptionModelEvent {
   total_mb?: number;
 }
 
+export interface ModelFetchEvent {
+  type: "model_fetch";
+  state: "downloading" | "done" | "error" | "stopped";
+  percent?: number;
+  mb?: number;
+  total_mb?: number;
+  path?: string;
+  name?: string;
+  message?: string;
+}
+
 export type TrainEvent =
   | StepEvent
   | SampleEvent
   | StatusEvent
   | LogEvent
   | CaptionEvent
-  | CaptionModelEvent;
+  | CaptionModelEvent
+  | ModelFetchEvent;
 
 export interface Sample {
   step: number;

@@ -85,6 +85,10 @@ export default function App() {
   const [captionModel, setCaptionModel] = useState<{
     state: "idle" | "downloading" | "loading" | "ready"; percent: number;
   }>({ state: "idle", percent: 0 });
+  // Base-model URL download state (shown in ConfigPanel); on "done" the path is set as base.
+  const [modelFetch, setModelFetch] = useState<{
+    state: "idle" | "downloading" | "done" | "error" | "stopped"; percent: number; message?: string;
+  }>({ state: "idle", percent: 0 });
   const [note, setNote] = useState(""); // latest engine log (loading, cache…)
   const [ckptRefresh, setCkptRefresh] = useState(0); // bump -> reload the LoRA list
 
@@ -140,6 +144,11 @@ export default function App() {
     }
     if (e.type === "caption_model") {
       setCaptionModel({ state: e.state, percent: e.percent ?? 0 });
+      return;
+    }
+    if (e.type === "model_fetch") {
+      setModelFetch({ state: e.state, percent: e.percent ?? 0, message: e.message });
+      if (e.state === "done" && e.path) setCfg((c) => ({ ...c, base_model: e.path as string }));
       return;
     }
     if (e.type === "status") {
@@ -260,6 +269,7 @@ export default function App() {
           <ConfigPanel
             cfg={cfg}
             setCfg={setCfg}
+            modelFetch={modelFetch}
             state={state}
             connected={connected}
             onStart={onStart}

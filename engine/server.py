@@ -18,7 +18,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 
 from captioner import CaptionJob, caption_path, clean_path
-from config import CaptionConfig, CaptionSave, TrainConfig
+from config import CaptionConfig, CaptionSave, ModelFetch, TrainConfig
+from model_fetch import ModelFetchJob
 from families import FAMILIES, get_family
 from trainer import TrainingJob
 
@@ -57,6 +58,7 @@ class Hub:
         self.history: list[dict] = []
         self.job: TrainingJob | None = None
         self.caption_job: CaptionJob | None = None
+        self.fetch_job: ModelFetchJob | None = None
 
     def emit_threadsafe(self, event: dict):
         """Called from the training thread."""
@@ -135,6 +137,30 @@ async def caption_model_status():
     from captioner import JOYCAPTION, model_cached
 
     return {"model_id": JOYCAPTION, "cached": model_cached(JOYCAPTION)}
+
+
+@app.post("/api/model/fetch/start")
+async def model_fetch_start(body: ModelFetch):
+    """Download a base model from a URL (HF / Civitai / any direct link) onto the
+    machine — lets cloud users grab their checkpoint without scp/SSH."""
+    if hub.fetch_job is not None and hub.fetch_job.is_alive():
+        return {"ok": False, "error": "A download is already running"}
+    url = (body.url or "").strip()
+    if not url:
+        return {"ok": False, "error": "no url"}
+    dest = clean_path(body.dest) or os.path.join(
+        os.environ.get("SOMA_MODEL_ROOT", "models"), "checkpoints"
+    )
+    hub.fetch_job = ModelFetchJob(url, dest, hub.emit_threadsafe)
+    hub.fetch_job.start()
+    return {"ok": True, "dest": dest}
+
+
+@app.post("/api/model/fetch/stop")
+async def model_fetch_stop():
+    if hub.fetch_job is not None:
+        hub.fetch_job.stop()
+    return {"ok": True}
 
 
 _ZIMAGE_PAT = ("zit", "z_image", "zimage", "z-image")

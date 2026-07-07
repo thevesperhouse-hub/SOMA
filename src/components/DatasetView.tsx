@@ -71,12 +71,14 @@ export function DatasetView({
   const cleanDir = () => dir.trim().replace(/^["']+|["']+$/g, "").trim();
 
   async function onUpload(files: FileList | null) {
-    const d = cleanDir();
-    if (!files || !files.length || !d) return;
+    if (!files || !files.length) return;
+    let d = cleanDir();
+    if (!d) { d = "/root/soma_dataset"; setDir(d); }  // no folder set -> sensible default
     setUploading(true);
     try {
       await uploadDataset(d, files);
-      await load();
+      setImages(await datasetList(d));
+      setEdits({});
     } finally {
       setUploading(false);
       if (fileInput.current) fileInput.current.value = "";
@@ -175,7 +177,7 @@ export function DatasetView({
           <Button
             variant="ghost"
             onClick={() => fileInput.current?.click()}
-            disabled={uploading || !dir.trim()}
+            disabled={uploading}
           >
             {uploading ? t("ds.uploading") : t("ds.upload")}
           </Button>

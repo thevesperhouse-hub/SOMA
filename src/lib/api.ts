@@ -57,6 +57,26 @@ export async function stopCaptioning(): Promise<void> {
   await afetch(`${BASE}/api/caption/stop`, { method: "POST" });
 }
 
+export async function startModelFetch(
+  url: string,
+  dest = ""
+): Promise<{ ok: boolean; dest?: string; error?: string }> {
+  try {
+    const r = await afetch(`${BASE}/api/model/fetch/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, dest }),
+    });
+    return await r.json();
+  } catch {
+    return { ok: false, error: "request failed" };
+  }
+}
+
+export async function stopModelFetch(): Promise<void> {
+  await afetch(`${BASE}/api/model/fetch/stop`, { method: "POST" });
+}
+
 export async function captionModelStatus(): Promise<{ model_id: string; cached: boolean }> {
   try {
     const r = await afetch(`${BASE}/api/caption/model_status`);
